@@ -1,0 +1,679 @@
+# -*- coding: utf-8 -*-
+# -*- mode: org -*-
+#+startup: beamer overview indent
+#+LANGUAGE: pt-br
+#+TAGS: noexport(n)
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+EXPORT_SELECT_TAGS: export
+
+#+Title: Sistemas Operacionais
+#+Subtitle: *Visão Geral*
+#+Author: Prof. Lucas Mello Schnorr (UFRGS)
+#+Date: \copyleft
+
+#+LaTeX_CLASS: beamer
+#+LaTeX_CLASS_OPTIONS: [xcolor=dvipsnames,10pt]
+#+OPTIONS: H:2 num:t toc:nil \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
+#+LATEX_HEADER: \input{org-babel.tex}
+
+* Introdução
+** Definindo Sistemas Operacionais (SO)
+
+# - Fonte: Silberschatz — Cap. 1, Sec. 1.1.3
+
+- Objetivo fundamental: facilitar a execução dos programas dos usuários
+  - SO reúne _controle_, _alocação_ e _proteção_ de recursos em um único software
+- *Kernel*: único programa em execução permanente no computador
+  - Além do kernel: programas de sistema e programas aplicativos
+
+#+latex: \pause    
+
+# - Fonte: Tanenbaum & Bos — Sec. 1.1.1
+# - Fonte: Tanenbaum & Bos — Sec. 1.1.2
+
+Visões do SO
+
+- SO como Máquina Estendida
+  - *top-down*: SO abstrai o hardware em interfaces simples
+    - Oculta a complexidade de discos, memória, dispositivos de E/S
+  - Apresenta ao programador uma máquina estendida fácil de programar      
+  - Separa o o quê (interface) do como (implementação)
+
+#+latex: \pause    
+    
+- SO como Gerenciador de Recursos
+  - *bottom-up*: o SO gerencia os componentes do sistema
+    - Recursos gerenciados: CPU, memória, dispositivos de E/S, arquivos
+  - Multiplexação no tempo: diferentes programas usam a CPU em turnos
+  - Multiplexação no espaço: memória dividida entre vários processos
+
+** Componentes de um Sistema de Computação
+
+# - Fonte: Silberschatz — Cap. 1, Sec. 1.2; Tanenbaum & Bos — Sec. 1.1
+# - Fonte: Silberschatz — Cap. 1, Sec. 1.2.1
+# Tanenbaum 1.3.6 Inicializando o computador
+
+- Processadores (Program Counter, Stack Pointer, Program Status Word)
+  - Chips multithread e multinúcleo (hyperthreading, etc)
+- Memória (Hierarquia de memória: RAM, Níveis de cache)
+- Discos (HDD com trilha, cilindro; SSD com memória flash)
+- Dispositivos de E/S (SATA, /driver/ de dispositivo)
+- Barramentos (PCIe, USB, DMI -- ISA, SCSI, /plug-and-play/ e interrupções)
+
+#+latex: \vfill
+  
+O SO coordena esses elementos todos
+- Uso da CPU
+- Gerência de memória
+- Operações de E/S
+- Armazenamento em disco  
+
+** Operação do Sistema de Computação
+
+BIOS (Basic Input Output System)
+- *Programa bootstrap*: armazenado em firmware (ROM/EEPROM)
+  - 1/ Inicializa o sistema e 2/ carrega o kernel
+
+#+latex: \pause\vfill
+
+Passos de inicialização
+- Confere a quantidade de RAM
+- Confere teclado/mouse estão disponíveis
+- Varre barramentos PCIe e PCI
+- Inicializa os dispositivos ali conectados
+- Usando dados em CMOS, identifica disco de armazenamento
+  - CD-ROM/USB, Disco rígido, etc
+- Le o primeiro setor do dispositivo de inicialização: *kernel* (=/boot/=)
+
+#+latex: \pause\vfill
+
+Uma vez o kernel rodando
+- Conversa com a BIOS para saber que dispositivos existem
+- Averigua se existe um driver no kernel para gerenciar cada dispositivo
+- Lança o primeiro processo (=systemd= com PID 1): /pstree -p/
+
+** Tratamento de Interrupções
+
+# - Fonte: Silberschatz — Cap. 1, Sec. 1.2.1
+
+Eventos sinalizam ocorrências ao SO via *interrupções*
+- Interrupção de *hardware*: sinal enviado à CPU pelo bus do sistema
+- Interrupção de *software*: chamada de sistema (/system call/)
+
+#+latex: \pause\vfill
+
+Na interrupção de HW, \to CPU transfere controle à *rotina de serviço* (SO)
+- *Vetor de interrupções*: tabela de ponteiros para rotinas de tratamento
+- Endereço de retorno salvo na pilha do sistema
+- Após o tratamento, a execução é retomada de onde foi interrompida
+
+Na interrupção de SW, o SO assume a execução para tratá-la
+
+* História
+** História dos Sistemas Operacionais
+
+# - Fonte: Tanenbaum & Bos — Sec. 1.2
+
+Sem sistema operacional
+- 1ª geração (1945–1955): válvulas, programação em código de máquina
+- 2ª geração (1955–1965): transistores, sistemas em lote (/batch/)
+Com sistema operacional
+- 3ª geração (1965–1980): circuitos integrados, MULTICS
+  - Advento do UNIX (Ken Thompson/Bell Labs/1969), houveram vertentes
+    - System V (AT&T, sucessora da Bell Labs)
+    - BSD (Berkeley Software Distribution)
+    - ``UNIX Wars'' -- https://en.wikipedia.org/wiki/Unix_wars
+  - Definição POSIX -- /Portable Operating System Interface/ pela IEEE
+  - MINIX é um pequeno clone do UNIX: http://www.minix3.org
+    - Provavelmente usaremos nesta disciplina
+- 4ª geração (1980–presente): PCs, MS-DOS, Windows, Linux
+- 5ª geração (1990–presente): dispositivos móveis, Android, iOS
+
+#+latex: \vfill
+
+#+begin_center
+AT&T Archives: The UNIX Operating System 
+
+https://www.youtube.com/watch?v=tc4ROCJYbm0
+#+end_center
+
+** 1ª Geração: Válvulas (1945–1955)                               :noexport:
+
+- Fonte: Tanenbaum & Bos — Sec. 1.2
+
+#+latex: \pause
+
+- Máquinas enormes com milhares de válvulas eletrônicas
+
+#+latex: \pause
+
+- Sem linguagem de programação; sem sistema operacional
+
+#+latex: \pause
+
+- Programação via painéis de ligação e cartões perfurados
+
+#+latex: \pause
+
+- Um único grupo: projetava, construía, programava e operava a máquina
+
+#+latex: \pause
+
+- Tarefas: cálculos numéricos simples (tabelas balísticas, cálculo do censo)
+
+** 2ª Geração: Transistores e Sistemas em Lote (1955–1965)        :noexport:
+
+- Fonte: Tanenbaum & Bos — Sec. 1.2
+
+#+latex: \pause
+
+- Transistores substituem válvulas: máquinas mais confiáveis
+
+#+latex: \pause
+
+- Separação clara entre operadores e programadores
+
+#+latex: \pause
+
+- *Sistemas em lote (batch)*: tarefas acumuladas em fita e processadas sequencialmente
+
+#+latex: \pause
+
+- Surgem as primeiras linguagens de alto nível: FORTRAN, COBOL
+
+#+latex: \pause
+
+- Problema: CPU ociosa enquanto aguarda operações de E/S
+
+** 3ª Geração: CIs e Multiprogramação (1965–1980)                 :noexport:
+
+- Fonte: Tanenbaum & Bos — Sec. 1.2
+
+#+latex: \pause
+
+- Circuitos integrados (CIs): redução de tamanho e custo
+
+#+latex: \pause
+
+- IBM System/360: primeira família de computadores compatíveis
+
+#+latex: \pause
+
+- *Multiprogramação*: vários jobs na memória simultaneamente
+
+#+latex: \pause
+
+- *Tempo compartilhado* (/timesharing/): múltiplos usuários interativos
+
+#+latex: \pause
+
+- Surgimento do *UNIX* (Bell Labs, 1969)
+
+** 4ª Geração: Computadores Pessoais (1980–presente)              :noexport:
+
+- Fonte: Tanenbaum & Bos — Sec. 1.2; Silberschatz — Cap. 1
+
+*** PCs                                                               :BMCOL:
+   :PROPERTIES:
+   :BEAMER_col: 0.5
+   :END:
+
+- Microprocessadores e VLSI
+- Computadores pessoais acessíveis
+- MS-DOS, Windows, Linux, macOS
+
+#+latex: \pause
+
+*** Dispositivos Móveis                                               :BMCOL:
+   :PROPERTIES:
+   :BEAMER_col: 0.5
+   :END:
+
+- Smartphones e tablets
+- Processadores multicore com GPS, câmera, sensores
+- Android (Google), iOS (Apple)
+
+** Sistemas Operacionais de Código-Fonte Aberto
+
+# - Fonte: Silberschatz — Cap. 1, Sec. 1.12
+
+SO de código aberto: disponíveis em formato de código-fonte
+  - Linux: exemplo mais famoso de SO de código-fonte aberto
+  - Windows: exemplo de abordagem de código-fonte fechado
+  - Mac OS X / iOS: abordagem híbrida
+    - Kernel Darwin aberto +
+    - Componentes proprietários
+
+#+latex: \vfill
+    
+Benefício
+#+begin_center
+comunidade de programadores contribui com depuração, análise, melhorias
+#+end_center
+
+#+latex: \pause
+
+*** História do Software Livre                                    :B_block:
+:PROPERTIES:
+:BEAMER_env: block
+:END:
+
+# - Fonte: Silberschatz — Cap. 1, Sec. 1.12.1
+
+- Anos 1950: programas trocados livremente entre pesquisadores
+- Fabricantes passaram a restringir redistribuição
+  - Apenas binários, sem código-fonte
+- 1983: Richard Stallman e o *projeto GNU* — SO livre, UNIX-compatível
+- 1985: Manifesto GNU; criação da *FSF* (Free Software Foundation)
+- *GPL* (GNU General Public License): copyleft (atualmente GPLv3)
+  - código-fonte deve acompanhar os binários
+- GNU possuia compilares (gcc), várias ferramentas, *sem kernel*
+    
+** História do Linux
+
+# - Fonte: Silberschatz — Cap. 1, Sec. 1.12.2
+
+1991: Linus Torvalds lança kernel rudimentar baseado em UNIX
+Desenvolvimento colaborativo via internet: atualizações semanais
+
+#+latex: \pause\vfill
+
+Hoje
+- Centenas de distribuições: RedHat, Debian, Ubuntu, Arch, etc.
+- Cada distribuição tem foco diferente
+  - Uso comercial, educação, jogos, servidores
+
+#+latex: \vfill
+
+#+begin_center
+https://kernel.org/
+#+end_center
+
+** BSD UNIX e Solaris                                             :noexport:
+
+# - Fonte: Silberschatz — Cap. 1, Secs. 1.12.3 e 1.12.4
+
+*** BSD UNIX                                                          :BMCOL:
+   :PROPERTIES:
+   :BEAMER_col: 0.5
+   :END:
+
+- Derivado do UNIX da AT&T (1978)
+- Versão aberta: 4.4BSD-lite (1994)
+- Distribuições: FreeBSD, NetBSD, OpenBSD
+- Darwin (kernel do macOS) é baseado no BSD
+
+#+latex: \pause
+
+*** Solaris                                                           :BMCOL:
+   :PROPERTIES:
+   :BEAMER_col: 0.5
+   :END:
+
+- SO comercial da Sun Microsystems, baseado em UNIX
+- 2005: código aberto no projeto OpenSolaris
+- 2009: compra pela Oracle deixou o projeto incerto
+- Projeto Illumos expandiu a base do OpenSolaris
+
+* Conceitos
+** Conceito 1/2
+# - Fonte: Tanenbaum & Bos — Sec. 1.5.1
+*** Processo \to programa em execução                               :B_block:
+:PROPERTIES:
+:BEAMER_env: block
+:END:
+- *Tabela de processos*: struct do SO, mantém dados de todos os processos
+- Processos podem criar *processos filhos* → árvore de processos (=pstree -t=)
+- Comunicação entre processos: *IPC* (/inter-process communication/)
+
+#+latex: \pause
+
+*** Espaços de Endereçamento                                      :B_block:
+:PROPERTIES:
+:BEAMER_env: block
+:END:
+
+# - Fonte: Tanenbaum & Bos — Sec. 1.5.2
+
+- Cada processo tem seu próprio espaço de endereçamento
+  - Endereços de 0 até [32 bits → 4GB | 64 bits → 16PB]
+  - O SO protege os espaços de endereçamento uns dos outros
+- *Memória virtual*: SO mantém em RAM e disco (transparente)
+
+#+latex: \pause
+
+*** Arquivos                                                      :B_block:
+:PROPERTIES:
+:BEAMER_env: block
+:END:
+
+# - Fonte: Tanenbaum & Bos — Sec. 1.5.3
+
+- SO abstrai detalhes de discos em um modelo de *arquivos* (POSIX)
+  - *Diretórios*: agrupam arquivos em hierarquias → *sistema de arquivos*
+- Nomes de caminho absolutos (=/home/user/arquivo=) e relativos
+- *Montagem* (/mount/): agrega um sist. de arquivos externo
+- *Arquivos especiais*: representam dispositivos de E/S (blocos e caracteres)
+
+** Conceito 2/2
+*** Entrada/Saída
+
+# - Fonte: Tanenbaum & Bos — Sec. 1.5.4
+
+- Todo SO tem um *subsistema de E/S* para gerenciar dispositivos de E/S
+  - Ocultar as peculiaridades do hardware dos programas de usuário
+- Software de E/S (independente ou específico, módulos do kernel)
+
+#+latex: \pause
+
+*** Proteção
+
+# - Fonte: Tanenbaum & Bos — Sec. 1.5.5
+
+- SO gerencia a segurança de acesso dos arquivos
+- Em UNIX: cada arquivo tem um código de proteção de *9 bits* [!]
+  - Três campos de 3 bits: *proprietário*, *grupo* e *outros usuários*
+  - Cada campo: bit de leitura (r), escrita (w) e execução (x) → bits *rwx*
+
+#+latex: \pause
+
+*** O Interpretador de Comandos (Shell)
+
+# - Fonte: Tanenbaum & Bos — Sec. 1.5.6
+
+- O shell *não* faz parte do SO; usa chamadas de sistema intensamente
+- Interface principal entre usuário e SO (quando não há GUI): =bash=, =zsh=
+- Redirecionamento de E/S: =date > arquivo=; =sort < entrada > saída=
+- *Pipes*: encadeia saída de um com entrada de outro: =cat f1 f2 | sort=
+- Execução em segundo plano: =comando &=
+
+** Tanenbaum: ``A Ontogenia Recapitula a Filogenia'' 1/2
+
+# - Fonte: Tanenbaum & Bos — Sec. 1.5.7
+
+- Nova classe de computador repete o desenvolvimento de seus antecessores
+  - Mudanças na tecnologia tornam ideias obsoletas — e depois as ressuscitam
+  - Exemplos de ciclos: ling. de montagem, monoprogramação, interpretação
+
+#+latex: \pause
+
+- Quatro desenvolvimentos históricos relevantes:
+  - Memórias grandes
+  - Hardware de proteção
+  - Discos
+  - Memória virtual
+
+#+latex: \pause
+
+*** Ontogenia: Memórias Grandes
+
+# - Fonte: Tanenbaum & Bos — Sec. 1.5.7
+
+- IBM 7090/7094 (1959–1964): apenas ~128 KB de memória → assembly
+- PDP-1 (primeiro minicomputador): 4.096 palavras de 18 bits → assembly
+- Primeiros microcomputadores: 4 KB → assembly
+- Hoje com aceleradoras GPU \to PXT (instruções assembly vetorizadas)
+- Linguagens de alto nível prevalecem em cada geração
+
+** Tanenbaum: ``A Ontogenia Recapitula a Filogenia'' 1/2
+*** Ontogenia: Hardware de Proteção
+
+# - Fonte: Tanenbaum & Bos — Sec. 1.5.7
+
+- IBM 7090/7094: sem HW de proteção → apenas um programa por vez
+- IBM 360: proteção primitiva → multiprogramação se torna possível
+- Primeiros minicomputadores (PDP-1, PDP-8): sem proteção → monoprog.
+- https://pt.wikipedia.org/wiki/PDP-11 → multiprogramação e UNIX
+- Intel 8080 (primeiros micros): sem proteção → monoprogramação
+- Intel 80286: proteção de hardware → multiprogramação nos PCs
+
+#+latex: \pause
+
+*** Ontogenia: Discos                                            :noexport:
+
+# - Fonte: Tanenbaum & Bos — Sec. 1.5.7
+
+- Computadores iniciais: baseados em fitas; sem sistemas de arquivos
+- 1956: IBM RAMAC, foi o primeiro disco rígido (\approx5 MB em \approx4 m²)
+- CDC 6600 (1964): ``arquivos permanentes'' com diretório de nível único
+- Evolução: diretórios hierárquicos complexos (culminando no MULTICS)
+- Minicomputadores e microcomputadores repetem o mesmo ciclo: de um único diretório até hierarquias completas
+
+#+latex: \pause
+
+*** Ontogenia: Memória Virtual
+
+# - Fonte: Tanenbaum & Bos — Sec. 1.5.7
+
+- Surgiu nos computadores de grande porte
+  - passou para minis → depois para micros
+- MULTICS: primeiro SO a permitir ligação dinâmica de bibliotecas
+- Hoje: amplamente usada em todos os sistemas UNIX e Windows
+- Ideia "obsoleta" que reaparece em cada nova classe de computador
+
+* Estrutura
+** Estrutura de Sistemas Operacionais
+
+# - Fonte: Tanenbaum & Bos — Sec. 1.7; Silberschatz — Cap. 2, Sec. 2.7
+
+Existem seis abordagens de projeto, vejamos três
+
+*** *Monolítico*: todo o SO como um único programa
+
+- Todo o SO executado como um único programa em *modo núcleo*
+- Cada procedimento pode chamar qualquer outro: muito eficiente
+- Problema: difícil de entender; uma falha e /kernel panic/ ;(
+- Exemplos: Linux, UNIX clássico
+
+#+latex: \pause
+
+*** *Camadas*: hierarquia de níveis com APIs bem definidas entre eles :noexport:
+
+- Hierarquia de camadas; cada camada usa serviços da camada inferior
+- Primeiro exemplo: sistema *THE* (Dijkstra, 1968) -- 6 camadas
+- Aneis concêntricos do MULTICS
+- Vantagem: modularidade e isolamento de erros por nível
+#+latex: \pause
+
+*** *Micronúcleo*: núcleo mínimo; serviços como processos de usuário
+
+- Núcleo contém apenas: IPC, gerência básica de processos e memória
+- Serviços de SO (FS, drivers) rodam como *processos de usuário*
+- Desvantagem: troca de mensagens entre processos é mais lenta
+- Exemplos: MINIX, QNX, L4, Mach
+#+latex: \pause
+
+*** *Cliente-servidor*: processos servidores especializados atendem requisições :noexport:
+
+- Fonte: Tanenbaum & Bos — Sec. 1.7.4
+
+#+latex: \pause
+
+- Variante do micronúcleo: divisão em processos *clientes* e *servidores*
+
+#+latex: \pause
+
+- Servidores especializados: servidor de arquivos, servidor de processos, servidor de memória
+
+#+latex: \pause
+
+- Clientes fazem requisições aos servidores via troca de mensagens
+
+#+latex: \pause
+
+- Núcleo: gerencia apenas a comunicação entre clientes e servidores
+
+#+latex: \pause
+
+- Naturalmente adaptável a sistemas distribuídos: cliente e servidor podem estar em máquinas diferentes
+
+#+latex: \pause
+
+*** *Máquinas virtuais*: abstração completa do HW para múltiplos SOs
+
+- Camada de software cria *cópias exatas do hardware* (máquinas virtuais)
+  - Cada VM pode executar um SO diferente de forma isolada
+- Exemplos: VMware, VirtualBox, KVM, Xen
+
+*** *Exonúcleo*: separação entre proteção e gerência de recursos   :noexport:
+
+- Fonte: Tanenbaum & Bos — Sec. 1.7.6
+
+#+latex: \pause
+
+- Ideia oposta às VMs: *não* simular uma máquina completa
+
+#+latex: \pause
+
+- O exonúcleo *aloca recursos físicos* a máquinas virtuais com pouca abstração
+
+#+latex: \pause
+
+- Cada máquina virtual sabe quais recursos físicos possui (disco, memória)
+
+#+latex: \pause
+
+- A gerência dos recursos é feita pela *biblioteca do SO* no espaço do usuário
+
+#+latex: \pause
+
+- Separação entre proteção (núcleo) e gerência (espaço do usuário)
+
+#+latex: \pause
+
+- Vantagem: elimina a camada de mapeamento de abstrações → melhor desempenho
+
+* Serviços
+** Serviços típicos de um SO 1/2
+*** Interface: Shell
+
+# - Fonte: Silberschatz — Cap. 2, Sec. 2.2.1
+
+- *Shell*: captura e executa comandos do usuário
+  - UNIX/Linux: vários shells disponíveis — bourne, korn, bash, zsh
+- Abordagens possíveis
+  - o próprio shell contém o código dos comandos
+  - shell localiza e executa um arquivo com o nome do comando
+- *Scripts de shell*: sequências de comandos em arquivo e executadas
+
+#+latex: \vfill\pause
+
+Vamos ver a partir do segundo 297
+#+begin_center
+AT&T Archives: The UNIX Operating System 
+
+https://youtu.be/tc4ROCJYbm0?si=IDrXP8GqMtVlHb_b&t=297
+#+end_center
+
+*** Interface: GUIs e Touchscreens
+
+# - Fonte: Silberschatz — Cap. 2, Sec. 2.2.2 e 2.2.3
+
+- Sistema de janelas com mouse e menus
+  - Primeiro no Xerox PARC (1973), mas popularizada pelo Macintosh (1984)
+  - Linux: GNOME, KDE (código aberto)
+- Smartphones e tablets: gestos na tela
+  - Teclado físico substituído por teclado virtual
+
+** Serviços típicos de um SO 2/2
+*** Chamadas de Sistema
+
+- Fonte: Silberschatz — Cap. 2, Sec. 2.3
+
+#+latex: \pause
+
+- Interface entre programas de usuário e serviços do SO
+
+#+latex: \pause
+
+- Disponíveis como rotinas em C/C++ (tarefas de baixo nível: linguagem de montagem)
+
+#+latex: \pause
+
+- Programadores usam *APIs* em vez de chamar diretamente o SO
+
+#+latex: \pause
+
+- APIs comuns: *Win32* (Windows), *POSIX* (UNIX/Linux/macOS), *Java* (JVM)
+
+#+latex: \pause
+
+- API POSIX: =libc= no UNIX/Linux implementa a interface com o kernel
+
+#+latex: \pause
+
+- Vantagem: portabilidade dos programas entre sistemas compatíveis com a mesma API
+
+*** Tipos de Chamadas de Sistema
+
+- Fonte: Silberschatz — Cap. 2, Sec. 2.4
+
+#+latex: \pause
+
+- *Controle de processos*: criar/terminar processo, esperar, alocar/liberar memória
+
+#+latex: \pause
+
+- *Manipulação de arquivos*: criar, excluir, abrir, fechar, ler, escrever, reposicionar
+
+#+latex: \pause
+
+- *Manipulação de dispositivos*: solicitar/liberar, ler, escrever, reposicionar (=ioctl=)
+
+#+latex: \pause
+
+- *Manutenção de informações*: hora/data, atributos de processos e arquivos
+
+#+latex: \pause
+
+- *Comunicações*: criar/excluir conexão, enviar/receber mensagens, memória compartilhada
+
+#+latex: \pause
+
+- *Proteção*: obter/definir permissões, controlar acesso a recursos
+
+*** Programas de Sistema
+
+- Fonte: Silberschatz — Cap. 2, Sec. 2.5
+
+#+latex: \pause
+
+- Fornecem um ambiente conveniente para desenvolvimento e execução de programas
+
+#+latex: \pause
+
+- *Gerenciamento de arquivos*: criar, copiar, renomear, listar, imprimir arquivos/diretórios
+
+#+latex: \pause
+
+- *Informações de status*: data, hora, memória disponível, usuários ativos, logs
+
+#+latex: \pause
+
+- *Suporte a linguagens de programação*: compiladores, montadores, interpretadores, depuradores
+
+#+latex: \pause
+
+- *Carregamento e execução de programas*: carregadores, editores de ligação
+
+#+latex: \pause
+
+- *Comunicações*: e-mail, login remoto, transferência de arquivos, navegadores
+
+#+latex: \pause
+
+- *Programas de aplicação*: não fazem parte do SO; fornecidos pelo fabricante ou pela comunidade
+
+* Referências                                                      :noexport:
+
+- Tanenbaum & Bos. /Sistemas Operacionais Modernos/, 4ª ed.
+  - Sec. 1.1: O que é um sistema operacional?
+  - Sec. 1.2: História dos sistemas operacionais
+  - Sec. 1.5: Conceitos de sistemas operacionais
+  - Sec. 1.7: Estrutura de sistemas operacionais
+
+#+latex: \pause
+
+- Silberschatz, Galvin & Gagne. /Fundamentos de Sistemas Operacionais/, 9ª ed.
+  - Cap. 1 (Secs. 1.1–1.2, 1.12): Introdução
+  - Cap. 2 (Secs. 2.1–2.5): Estruturas do Sistema Operacional
