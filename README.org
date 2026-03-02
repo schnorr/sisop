@@ -1,0 +1,48 @@
+#+TITLE: Sistemas Operacionais (INF01142)
+#+startup: overview indent
+#+OPTIONS: html-link-use-abs-url:nil html-postamble:auto
+#+OPTIONS: html-preamble:t html-scripts:t html-style:t
+#+OPTIONS: html5-fancy:nil tex:t
+#+HTML_DOCTYPE: xhtml-strict
+#+HTML_CONTAINER: div
+#+DESCRIPTION:
+#+KEYWORDS:
+#+HTML_LINK_HOME:
+#+HTML_LINK_UP:
+#+HTML_MATHJAX:
+#+HTML_HEAD:
+#+HTML_HEAD_EXTRA:
+#+SUBTITLE:
+#+INFOJS_OPT:
+#+CREATOR: <a href="http://www.gnu.org/software/emacs/">Emacs</a> 25.2.2 (<a href="http://orgmode.org">Org</a> mode 9.0.1)
+#+LATEX_HEADER:
+#+EXPORT_EXCLUDE_TAGS: noexport
+
+#+begin_html
+<a rel="license" href="http://creativecommons.org/licenses/by-sa/4.0/"><img alt="Creative Commons License" style="border-width:0" src="img/88x31.png" /></a>
+#+end_html
+
+Seja bemvinda(o) a disciplina de sistemas operacionais, disciplina
+obrigatória proposta pelo Departamento de Informática Aplicada (INA)
+para os alunos dos cursos de CIC (Ciência da Computação) e ECP
+(Engenharia da Computação) do INF (Instituto de Informática) da UFRGS
+(Universidade Federal do Rio Grande do Sul).  Disponibilizamos aqui o
+material relacionado a esta disciplina.
+
+* Material
+
+[[./material/]]
+
+* Bibliografia
+
+- Silberschatz, Abraham; Galvin, Peter Baer; Gagne, Greg.;q Fundamentos
+  de sistemas operacionais.; Rio de Janeiro: LTC, 2019. ISBN 9788521629399.
+- Tanenbaum, Andrew S.; Sistemas operacionais modernos. São Paulo:
+  Pearson Prentice Hall, 2008. ISBN 9780136006633.
+- Tanenbaum Andrew S.; Sistemas operacionais: projeto e
+  implementação. Porto Alegre: Bookman, 2008. ISBN 9788577800575.
+  
+* Contato
+
+Se você encontrar algum problema, e também no caso de dúvidas, entre em contato por e-mail:
+- [[http://www.inf.ufrgs.br/~schnorr][Prof. Lucas (http://www.inf.ufrgs.br/~schnorr)]]
