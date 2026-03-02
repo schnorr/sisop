@@ -35,12 +35,8 @@ material relacionado a esta disciplina.
 
 * Bibliografia
 
-- Silberschatz, Abraham; Galvin, Peter Baer; Gagne, Greg.;q Fundamentos
-  de sistemas operacionais.; Rio de Janeiro: LTC, 2019. ISBN 9788521629399.
-- Tanenbaum, Andrew S.; Sistemas operacionais modernos. São Paulo:
-  Pearson Prentice Hall, 2008. ISBN 9780136006633.
-- Tanenbaum Andrew S.; Sistemas operacionais: projeto e
-  implementação. Porto Alegre: Bookman, 2008. ISBN 9788577800575.
+- SILBERSCHATZ, Abraham; GALVIN, Peter Baer; GAGNE, Greg. Fundamentos de sistemas operacionais. 9. ed. Rio de Janeiro: LTC, 2019. ISBN 978-85-216-2939-9.
+- TANENBAUM, Andrew S.; BOS, Herbert. Sistemas operacionais modernos. 4. ed. São Paulo: Pearson, 2016. ISBN 978-85-430-0340-2.
   
 * Contato
 
