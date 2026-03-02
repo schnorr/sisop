@@ -78,8 +78,72 @@ Consulte no Portal do Aluno da UFRGS, ou uma cópia no moodle
 
 Vamos revisar os pontos juntos!
 
-* Bibliografia
+* Objetivos
 
+Apresentar os conceitos básicos de sistemas operacionais e seus
+componentes básicos, incluindo os princípios fundamentais de gerência
+de processador, gerência de entrada e saída, gerência de memória e
+gerência de arquivos.
+
+A disciplina visa desenvolver as seguinte habilidades específicas:
+
+- Compreender os objetivos e funções dos sistemas operacionais,
+  principais mecanismos e técnicas utilizados na construção desses
+  sistemas e suas relações de conveniência, eficiência e capacidade de
+  evolução.
+
+- Compreender como o design de software de sistemas operacionais afeta
+  a robustez e a capacidade de manutenção de um sistema operacional.
+
+- Compreender a dinâmica de chamadas do sistema, a separação entre
+  modo kernel e modo de usuário e seus efeitos sobre a segurança e o
+  desempenho, as vantagens e desvantagens de usar o processamento de
+  interrupção para habilitar a multiprogramação.
+
+- Comparar e contrastar os algoritmos comuns usados para escalonamento
+  (preemptivo e não preemptivo) de tarefas em sistemas operacionais,
+  como prioridade, comparação de desempenho e esquemas de
+  compartilhamento justo.
+
+* Metodologia
+
+A disciplina será desenvolvida através de aulas expositivas, de aulas
+de exercícios de aplicação dos conceitos apresentados, de atividades e
+trabalhos extra-classe, relacionados aos conteúdos desenvolvidos.
+
+A carga de 50h de horas coletivas se traduz em 30 encontros com
+supervisão do docente, os quais serão subdivididos em aulas
+expositivas ou aulas práticas em laboratório.
+
+As aulas em laboratório possibilitam ilustrar os conceitos
+apresentados em aulas teóricas, ou acompanhar os alunos na programação
+de um trabalho incremental de sistemas operacionais, baseado em um
+O.S. aberto e didático como, por exemplo, o MINIX.
+
+Os alunos deverão alterar os mecanismos de (a) gestão de processos ou
+threads, (b) gestão da memória, e (c) gestão dos arquivos, à medida
+que estes conceitos forem ensinados durante o semestre. Ainda para
+este trabalho, os discentes deverão usar sua carga horária autônoma
+(10h) para finalizar a programação entre os encontros 20 e 30 e, desta
+forma, entregar um trabalho finalizado completo na conclusão do
+semestre.
+
+* Experiências de aprendizagem
+
+- Participar de aulas expositivas dialogadas;
+- Realizar trabalhos de programação em laboratório;
+- Resolver listas de exercícios extra-classe;
+- Desenvolver um trabalho final de implementação;
+- Realizar leitura de material disponibilizado;
+
+Em relação ao uso de Inteligência Artificial na disciplina, os
+estudantes deverão seguir as regras definidas pelo professor
+responsável.  As diretrizes relativas ao uso de IA podem variar entre
+os diferentes trabalhos e atividades práticas ou teóricas que compõem
+as experiências de aprendizagem e os critérios de avaliação da
+disciplina.
+
+* Bibliografia
 ** Left                                                              :BMCOL:
 :PROPERTIES:
 :BEAMER_col: 0.5
@@ -87,7 +151,6 @@ Vamos revisar os pontos juntos!
 - SILBERSCHATZ, Abraham; GALVIN, Peter Baer; GAGNE, Greg. Fundamentos de sistemas operacionais. 9. ed. Rio de Janeiro: LTC, 2019. ISBN 978-85-216-2939-9.
 #+attr_latex: :width .7\linewidth
 [[./img/SILBERSCHATZ.png]]
-
 
 ** Right                                                             :BMCOL:
 :PROPERTIES:
@@ -99,13 +162,15 @@ Vamos revisar os pontos juntos!
 
 * Avaliação
 
-A avaliação será feita da seguinte forma:
-- Duas provas escritas (P1, P2)
-- Conjunto de trabalhos em laboratório
+Haverá duas provas escritas P1 e P2, teóricas, cada uma tratando de
+metade do conteúdo didático.  Haverá trabalhos de programação, podendo
+ser desenvolvidos em grupo, que levarão a uma nota média P dos
+trabalhos, sobre 10.
 
 #+latex: \pause
 
-Média Final (MF) = (P1+P2+T)/3
+A nota final será uma média calculada a partir das provas escritas e
+do trabalho NF = (P1+P2+P)/3.
 
 #+latex: \pause
 
