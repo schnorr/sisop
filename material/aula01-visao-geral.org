@@ -578,93 +578,29 @@ https://youtu.be/tc4ROCJYbm0?si=IDrXP8GqMtVlHb_b&t=297
 ** Serviços típicos de um SO 2/2
 *** Chamadas de Sistema
 
-- Fonte: Silberschatz — Cap. 2, Sec. 2.3
+# - Fonte: Silberschatz — Cap. 2, Sec. 2.3
 
 #+latex: \pause
 
 - Interface entre programas de usuário e serviços do SO
-
-#+latex: \pause
-
-- Disponíveis como rotinas em C/C++ (tarefas de baixo nível: linguagem de montagem)
-
-#+latex: \pause
-
 - Programadores usam *APIs* em vez de chamar diretamente o SO
-
-#+latex: \pause
-
-- APIs comuns: *Win32* (Windows), *POSIX* (UNIX/Linux/macOS), *Java* (JVM)
-
-#+latex: \pause
-
+- APIs comuns: *Win32* (Windows), *POSIX* (UNIX/Linux/macOS)
 - API POSIX: =libc= no UNIX/Linux implementa a interface com o kernel
-
-#+latex: \pause
-
-- Vantagem: portabilidade dos programas entre sistemas compatíveis com a mesma API
+- Vantagem: portabilidade dos programas entre sistemas compatíveis
 
 *** Tipos de Chamadas de Sistema
 
-- Fonte: Silberschatz — Cap. 2, Sec. 2.4
+# - Fonte: Silberschatz — Cap. 2, Sec. 2.4
 
-#+latex: \pause
-
-- *Controle de processos*: criar/terminar processo, esperar, alocar/liberar memória
-
-#+latex: \pause
-
-- *Manipulação de arquivos*: criar, excluir, abrir, fechar, ler, escrever, reposicionar
-
-#+latex: \pause
-
-- *Manipulação de dispositivos*: solicitar/liberar, ler, escrever, reposicionar (=ioctl=)
-
-#+latex: \pause
-
-- *Manutenção de informações*: hora/data, atributos de processos e arquivos
-
-#+latex: \pause
-
-- *Comunicações*: criar/excluir conexão, enviar/receber mensagens, memória compartilhada
-
-#+latex: \pause
-
+- *Ctrl. de processos*: criar/terminar processo, esperar, alocar, liberar memória
+- *Arquivos*: criar/excluir, abrir, fechar, ler, escrever, reposicionar
+- *Dispositivos*: solicitar, liberar, ler, escrever, reposicionar (=ioctl=)
+- *Comunicações*: criar, excluir conexão, enviar, receber mensagens
 - *Proteção*: obter/definir permissões, controlar acesso a recursos
 
-*** Programas de Sistema
+* Referências
 
-- Fonte: Silberschatz — Cap. 2, Sec. 2.5
-
-#+latex: \pause
-
-- Fornecem um ambiente conveniente para desenvolvimento e execução de programas
-
-#+latex: \pause
-
-- *Gerenciamento de arquivos*: criar, copiar, renomear, listar, imprimir arquivos/diretórios
-
-#+latex: \pause
-
-- *Informações de status*: data, hora, memória disponível, usuários ativos, logs
-
-#+latex: \pause
-
-- *Suporte a linguagens de programação*: compiladores, montadores, interpretadores, depuradores
-
-#+latex: \pause
-
-- *Carregamento e execução de programas*: carregadores, editores de ligação
-
-#+latex: \pause
-
-- *Comunicações*: e-mail, login remoto, transferência de arquivos, navegadores
-
-#+latex: \pause
-
-- *Programas de aplicação*: não fazem parte do SO; fornecidos pelo fabricante ou pela comunidade
-
-* Referências                                                      :noexport:
+** Referências
 
 - Tanenbaum & Bos. /Sistemas Operacionais Modernos/, 4ª ed.
   - Sec. 1.1: O que é um sistema operacional?
@@ -672,8 +608,9 @@ https://youtu.be/tc4ROCJYbm0?si=IDrXP8GqMtVlHb_b&t=297
   - Sec. 1.5: Conceitos de sistemas operacionais
   - Sec. 1.7: Estrutura de sistemas operacionais
 
-#+latex: \pause
-
-- Silberschatz, Galvin & Gagne. /Fundamentos de Sistemas Operacionais/, 9ª ed.
+- Silberschatz, Galvin & Gagne. /Fundamentos de Sistemas Operacionais/, 9ª
   - Cap. 1 (Secs. 1.1–1.2, 1.12): Introdução
   - Cap. 2 (Secs. 2.1–2.5): Estruturas do Sistema Operacional
+
+- AT&T Archives: The UNIX Operating System 
+  https://youtu.be/tc4ROCJYbm0?si=IDrXP8GqMtVlHb_b&t=297
