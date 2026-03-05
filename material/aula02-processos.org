@@ -357,16 +357,17 @@ struct mm_struct *mm;  /* memória */
 
 #+latex: \pause\vfill
 
-#+begin_src R :results file output graphics :file (org-babel-temp-file "figure" ".png") :exports results :width 600 :height 200 :session *R*
+#+begin_src R :results file output graphics :file img/modelando-multiprogramacao.pdf :exports results :width 6 :height 2 :session *R*
 options(crayon.enabled=FALSE)
 library(tidyverse)
-crossing(p = c(0.1, 0.2, 0.5, 0.8, 0.9), n = 0:100) |>
+crossing(p = c(0.2, 0.5, 0.8), n = 0:20) |>
   mutate(U = 1 - p^n) |>
   mutate(p = as.factor(p)) |>
   ggplot(aes(x = n, y = U, color = p, group = p)) +
-  geom_line(alpha=.3) +
+  geom_line(alpha=.8) +
   geom_point() +
-  theme_bw(base_size=18) +
+  theme_bw(base_size=12) +
+  scale_color_brewer(palette = "Set1", name = "Group") +
   theme(
     plot.margin = unit(c(0, 0, 0, 0), "cm"),
     legend.spacing = unit(1, "mm"),
@@ -380,7 +381,7 @@ crossing(p = c(0.1, 0.2, 0.5, 0.8, 0.9), n = 0:100) |>
 #+end_src
 
 #+RESULTS:
-[[file:/tmp/babel-LgG6VO/figurepzFzEa.png]]
+[[file:img/modelando-multiprogramacao.pdf]]
 
 
 #+latex: \pause\vfill
