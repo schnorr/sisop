@@ -1,0 +1,400 @@
+# -*- coding: utf-8 -*-
+# -*- mode: org -*-
+#+startup: beamer overview indent
+#+LANGUAGE: pt-br
+#+TAGS: noexport(n)
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+EXPORT_SELECT_TAGS: export
+
+#+Title: Sistemas Operacionais
+#+Subtitle: *Processos: Conceito e Implementação*
+#+Author: Prof. Lucas Mello Schnorr (UFRGS)
+#+Date: \copyleft
+
+#+LaTeX_CLASS: beamer
+#+LaTeX_CLASS_OPTIONS: [xcolor=dvipsnames,10pt]
+#+OPTIONS: H:1 num:t toc:nil \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
+#+LATEX_HEADER: \input{org-babel.tex}
+
+* Introdução a processos
+
+*Processo* é a instância de um programa em execução
+
+- Inclui: contador de programa, registradores, variáveis
+  - _Programa_, _Entrada_, _Saída_, _Estado_ 
+- Cada processo tem sua própria CPU virtual
+- A CPU real alterna entre processos rapidamente
+- Esse mecanismo é chamado *multiprogramação*
+
+#+latex: \vfill\pause
+
+*Programa × Processo*
+
+- Programa: entidade *passiva* (arquivo em disco)
+- Processo: entidade *ativa* (programa carregado na memória)
+- O mesmo programa pode originar múltiplos processos
+
+* Criação de processos
+
+# - Fonte: Tanenbaum & Bos — Cap. 2, Sec. 2.1.2
+
+Quatro eventos que causam a criação de processos
+
+- Inicialização do sistema (processo =init=)
+- Chamada de sistema por um processo em execução
+- Solicitação de um usuário para criar um novo processo
+  - Cliques em ícones, execução via terminal
+- Início de uma tarefa em lote (=sbatch= no PCAD)
+
+#+latex: \vfill
+
+*Daemons*: processos em segundo plano que gerenciam serviços do sistema
+
+- Exemplos: e-mail, web, impressão
+- No UNIX, o comando =ps= lista os processos em execução
+
+#+latex: \vfill
+
+- Um processo pode criar filhos para auxiliar no trabalho
+  - Podemos dividir uma carga de trabalho entre os processos filhos
+
+* Criação de processos na prática
+
+# - Fonte: Tanenbaum & Bos — Cap. 2, Sec. 2.1.2; Silberschatz — Cap. 3, Sec. 3.3
+
+*UNIX*: chamada de sistema =fork=
+
+- =fork=: cria um clone exato do processo pai
+- O filho chama =execve= (ou similar) para carregar novo programa
+# - Dois passos permitem redirecionar stdin/stdout/stderr antes do exec
+
+#+latex: \vfill
+
+# IExemplo em C (Silberschatz — Figura 3.9):
+
+#+BEGIN_SRC C
+pid_t pid = fork();
+if (pid == 0) {       /* filho */
+    execlp("/bin/ls","ls",NULL);
+} else {              /* pai */
+    wait(NULL);
+}
+#+END_SRC
+
+#+latex: \vfill\pause
+
+*Windows*: chamada =CreateProcess=
+
+- Cria o processo e carrega o programa em uma única chamada
+- Mais de dez parâmetros de configuração
+
+** Programa para criar processos com fork/execve                  :noexport:
+
+#+begin_src C :tangle fork.c
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <stdio.h>
+#include <unistd.h>
+int main(int argc, char **argv)
+{
+  pid_t pid = 0;
+  /* cria um processo-filho */
+  pid = fork();
+  if (pid < 0) { /* um erro ocorreu */
+    fprintf(stderr, "Fork Failed.\n");
+    return 1;
+  }else if (pid == 0) { /* processo-filho */
+    execve("/bin/ls", argv, NULL);
+  }else { /* processo-pai */
+    /* o pai esperará que o filho seja concluído */
+    printf("Parent is waiting.\n");
+    wait(NULL);
+    printf("Child Complete.\n");
+  }
+  return 0;
+}
+#+end_src
+
+* O que acontece depois do =fork()=
+
+# - Fonte: Tanenbaum & Bos — Cap. 2, Sec. 2.1.2; Silberschatz — Cap. 3, Sec. 3.3
+
+Após =fork=, pai e filho possuem *espaços de endereços (virtual) distintos*
+- Nenhuma memória gravável é compartilhada entre eles
+- Alterações de variáveis (estáticas, globais) em um não afetam o outro
+
+#+latex: \vfill
+
+Recursos que *podem* ser compartilhados
+- Arquivos abertos herdados do pai
+- Descritores de arquivo (antes do =exec=)
+
+#+latex: \vfill
+
+Duas abordagens possíveis após a criação
+- *Pai continua* executando concorrentemente ao filho
+- *Pai espera* (=wait=) até que o filho termine
+
+* Término de processos
+
+# - Fonte: Tanenbaum & Bos — Cap. 2, Sec. 2.1.3; Silberschatz — Cap. 3, Sec. 3.3
+
+Quatro condições de término
+1. Saída normal: voluntária (=exit=)
+2. Saída por erro: voluntária (erro detectado pelo processo)
+3. Erro fatal: involuntário (instrução ilegal, divisão por zero)
+4. Morto por outro processo: involuntário (=kill= / =TerminateProcess=)
+
+#+latex: \vfill\pause
+   
+*Processo zumbi*
+- Processo encerrado cujo pai ainda não chamou =wait()=
+- Entrada na tabela de processos permanece até o pai chamar =wait()=
+- Contém o status de saída do processo
+
+#+latex: \vfill\pause
+
+*Encerramento em cascata*
+- Alguns sistemas não permitem filho sem pai
+- Se o pai termina, todos os filhos são encerrados
+  - Muitas vezes isso é algo opcional (=gerenciador de login=)
+- Isso nos remete a hierarquia de processos =Unix=
+    
+* Hierarquia de processos
+
+# - Fonte: Tanenbaum & Bos — Cap. 2, Sec. 2.1.2
+
+*UNIX*: hierarquia de processos (=pstree -p=)
+- Um processo filho pode criar mais processos
+- Processo + todos os descendentes = *grupo de processos*
+- Todos os processos pertencem a uma única árvore
+  - Raiz da árvore: processo =init=
+- Processos UNIX não podem repassar (deserdar) seus filhos
+
+#+latex: \vfill\pause
+
+*Windows*: sem hierarquia formal
+- Pai recebe um *handle* (identificador) ao criar um filho
+  - O handle pode ser passado para outro processo
+  - Isso invalida qualquer noção de hierarquia
+- Não há equivalente ao =init=
+
+* Diagrama de estados de processo
+
+# - Fonte: Tanenbaum & Bos — Cap. 2, Sec. 2.1.3; Silberschatz — Cap. 3, Sec. 3.1
+
+Vejamos um exemplo da iteração entre dois processos
+
+#+BEGIN_SRC sh
+$ cat txt1 txt2 txt3 | grep tree
+#+END_SRC
+
+- =grep= pode estar pronto, mas sem entrada disponível
+- =grep= deve *bloquear* até que =cat= produza saída
+
+#+latex: \vfill\pause
+
+Um processo pode se encontrar em diferentes estados
+#+attr_latex: :width .7\linewidth
+[[./S_fig3.2.png]]
+# [[./T_fig2.2.png]]
+
+#+latex: \bigskip
+
+Dois tipos de bloqueio
+- Multiplexação do tempo, outra tarefa usa a CPU (interrupção)
+- Inerente ao programa (espera por E/S)
+
+* Diagrama de estados                                              :noexport:
+** Tanenbaum                                                        :BMCOL:
+   :PROPERTIES:
+   :BEAMER_col: 0.5
+   :END:
+
+Tanenbaum & Bos — Figura 2.2: *3 estados*
+
+- *Em execução* → Bloqueado: processo aguarda E/S
+- *Em execução* → Pronto: escalonador interrompe
+- *Pronto* → Em execução: escalonador seleciona
+- *Bloqueado* → Pronto: evento externo ocorre
+
+(Figura 2.2 — Tanenbaum)
+
+** Silberschatz                                                     :BMCOL:
+   :PROPERTIES:
+   :BEAMER_col: 0.5
+   :END:
+
+Silberschatz — Figura 3.2: *5 estados*
+
+- *Novo*: processo sendo criado
+- *Pronto*: aguarda alocação de processador
+- *Em execução*: instruções sendo executadas
+- *Em espera*: aguarda evento (E/S ou sinal)
+- *Concluído*: processo terminou a execução
+
+(Figura 3.2 — Silberschatz)
+
+* Escalonamento de processos
+
+Diagrama de estados de dois processos (=cat= à esquerda, =grep= à direita)
+
+#+begin_export latex
+\includegraphics[width=.3\linewidth]{./T_fig2.2.png}%
+\includegraphics[width=.3\linewidth]{./T_fig2.2.png}
+#+end_export
+
+#+latex: \vfill\pause
+
+Entendemos o que está ocorrendo dentro de cada processo
+- Precisamos de uma entidade que gerencia esse processo
+
+#+attr_latex: :width .3\linewidth
+[[./T_fig2.3.png]]
+
+*Escalonador* (que implementa a _multiprogramação_)
+- Tratamento de interrupções, maximizando o uso da CPU
+- Sempre ter algum processo em execução
+  - Alternar a CPU entre processos com frequência
+  - Usuários podem interagir com cada programa
+
+* O tratamento de interrupção
+
+# - Fonte: Tanenbaum & Bos — Cap. 2, Sec. 2.1.3; Silberschatz — Cap. 3, Sec. 3.2
+
+A cada interrupção de HW (preempção ou E/S) ou de SW (programa)
+1. O HW empilha o PC (/Program Counter/) e outras informações
+2. O HW carrega o PC a partir do _vetor de interrupções_
+3. O _vetor de interrupções_ em /assembly/ salva os registradores
+4. O procedimento em /assembly/ configura uma nova pilha
+5. O serviço de interrupção em C executa
+6. O *escalonador* decide qual processo é o próximo a executar
+7. O procedimento em C retorna para o código em /assembly/
+8. O procedimento em /assembly/ inicia o novo processo atual
+
+#+latex: \pause\vfill
+
+Precisamos manter informações (PC, etc) sobre cada processo
+- Cada processo possui um PCB (/Process Control Block/) -- é uma =struct=
+  - Existe uma ``tabela'' de todos os PCBs (normalmente uma lista)
+
+* Bloco de Controle de Processo (PCB)
+
+# - Fonte: Tanenbaum & Bos — Cap. 2, Sec. 2.1.4; Silberschatz — Cap. 3, Sec. 3.1.3
+
+Campos do PCB
+- Estado do processo (novo, pronto, executando…)
+- Contador do programa (próxima instrução)
+- Registradores da CPU (acumuladores, pilha, índice)
+- Informações de scheduling (prioridade, ponteiros de filas)
+- Informações de gerenciamento de memória
+
+#+latex: \vfill\pause
+  
+Salvo/restaurado a cada troca de estado
+- Quando o processo sai da execução
+- Para estados pronto ou bloqueado
+- _Permite retomar como se nunca tivesse parado_
+
+#+latex: \vfill\pause
+
+*Mudança de contexto* (context switch)
+- Kernel salva PCB do processo corrente
+- Kernel carrega PCB do próximo processo
+- Tempo gasto é de sobrecarga do SO (sem trabalho útil)
+  - Velocidade típica: alguns milissegundos
+
+* Os campos típicos no PCB
+
+# - Fonte: Tanenbaum & Bos — Figura 2.4; Silberschatz — Cap. 3, Sec. 3.1.3; Linux =sched.h=
+
+- Gerenciamento de processos
+  - Registros
+  - Contador de programa
+  - Palavra de estado do programa
+  - Ponteiro da pilha
+  - Estado do processo
+  - Prioridade
+  - Parâmetros de escalonamento
+  - ID do processo
+  - Processo pai
+  - Grupo de processo
+  - Sinais
+  - ...
+- Gerenciamento de memória
+  - Ponteiro para informações sobre o segmento de texto
+  - Ponteiro para informações sobre o segmento de dados
+  - Ponteiro para informações sobre o segmento de pilha
+- Gerenciamento de arquivos
+  - Diretório-raiz
+  - Diretório de trabalho
+  - Descritores de arquivo
+  - ID do usuário e grupo
+
+* Exemplo concreto do PCB
+
+** PCB no Linux: =task_struct= em =<include/linux/sched.h>=
+
+#+BEGIN_SRC C
+long state;            /* estado */
+struct sched_entity se;/* scheduling */
+struct task_struct *parent;
+struct list_head children;
+struct files_struct *files;
+struct mm_struct *mm;  /* memória */
+#+END_SRC
+
+** Tabela de PCB
+
+- Lista encadeada via =struct sched_entity= (campo =group_node=)
+
+* Modelando a multiprogramação
+
+- Obj: Estimar a utilização da CPU em função do grau de multiprogramação
+- Seja $p$ a fração do tempo que um processo fica em E/S
+  - Com $n$ processos, a probabilidade de *todos* esperando por E/S é $p^n$
+- Assim, a métrica ``Utilização da CPU'' \to \text{Utilização} = 1 - p^n
+
+#+latex: \pause\vfill
+
+#+begin_src R :results file output graphics :file (org-babel-temp-file "figure" ".png") :exports results :width 600 :height 200 :session *R*
+options(crayon.enabled=FALSE)
+library(tidyverse)
+crossing(p = c(0.1, 0.2, 0.5, 0.8, 0.9), n = 0:100) |>
+  mutate(U = 1 - p^n) |>
+  mutate(p = as.factor(p)) |>
+  ggplot(aes(x = n, y = U, color = p, group = p)) +
+  geom_line(alpha=.3) +
+  geom_point() +
+  theme_bw(base_size=18) +
+  theme(
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),
+    legend.spacing = unit(1, "mm"),
+    panel.grid = element_blank(),
+    legend.position = "top",
+    legend.justification = "left",
+    legend.box.spacing = unit(0, "pt"),
+    legend.box.margin = margin(0, 0, 0, 0)) +
+  ylab("Utilização de CPU [%]") +
+  xlab("Quantidade de processos na memória")
+#+end_src
+
+#+RESULTS:
+[[file:/tmp/babel-LgG6VO/figurepzFzEa.png]]
+
+
+#+latex: \pause\vfill
+
+#+begin_center
+Mais memória RAM permite maior $n$ que implica em maior uso de CPU
+#+end_center
+
+* Referências
+
+- Silberschatz, Galvin & Gagne. /Fundamentos de Sist. Operacionais/, 9ª ed.
+  - Cap. 3, Secs. 3.1, 3.2, 3.3
+
+- Tanenbaum & Bos. /Sistemas Operacionais Modernos/, 4ª ed.
+  - Cap. 2, Secs. 2.1.1 -- 2.1.7
+
+  
