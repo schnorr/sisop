@@ -1,0 +1,395 @@
+# -*- coding: utf-8 -*-
+# -*- mode: org -*-
+#+startup: beamer overview indent
+#+LANGUAGE: pt-br
+#+TAGS: noexport(n)
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+EXPORT_SELECT_TAGS: export
+
+#+Title: Sistemas Operacionais
+#+Subtitle: *Comunicação entre Processos (IPC)*
+#+Author: Prof. Lucas Mello Schnorr (UFRGS)
+#+Date: \copyleft
+
+#+LaTeX_CLASS: beamer
+#+LaTeX_CLASS_OPTIONS: [xcolor=dvipsnames,10pt]
+#+OPTIONS: H:1 num:t toc:nil \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
+#+LATEX_HEADER: \input{org-babel.tex}
+
+* Estrutura da aula
+
+- Revisão
+  - Ciclos de operação de CPU e E/S
+  - Filas de processos e modelos de estado
+- Conceitos de IPC (seção 3.4)
+  - Memória compartilhada e transmissão de mensagens
+- Exemplo: Memória Compartilhada POSIX (seção 3.5)
+- IPC \to Pipes (seção 3.6.3)
+
+* Revisão: Ciclos de operação de CPU e E/S
+
+[[./S_fig3.4.png]]
+
+* Revisão: Filas de processos e modelos de estado
+
+** Left                                                             :BMCOL:
+   :PROPERTIES:
+   :BEAMER_col: 0.5
+   :END:
+
+[[./S_fig3.6.png]]
+
+** Right                                                            :BMCOL:
+   :PROPERTIES:
+   :BEAMER_col: 0.5
+   :END:
+
+[[./S_fig3.7.png]]
+
+* Introdução à Comunicação entre Processos (IPC)
+
+** Texto                                                           :BMCOL:
+   :PROPERTIES:
+   :BEAMER_col: 0.55
+   :END:
+
+Processos concorrentes: _independentes_ ou _cooperativos_
+
+- Independente: não compartilha dados, não afeta outros
+- Cooperativo: compartilha dados ou afeta outros processos
+
+Motivações para processos cooperativos
+
+- Compartilhamento de informações
+- Aumento de velocidade com paralelismo
+- Modularidade do sistema
+- Conveniência do usuário
+
+Dois modelos de IPC
+
+- Memória compartilhada: leitura/escrita em região comum
+- Transmissão de mensagens: troca de mensagens entre processos
+
+** Figura                                                          :BMCOL:
+   :PROPERTIES:
+   :BEAMER_col: 0.45
+   :END:
+
+[[./S_fig3.12.png]]
+
+* 3.4.2 Sistemas de Transmissão de Mensagens
+
+A transmissão de mensagens permite comunicação e sincronização sem espaço de endereçamento compartilhado
+
+#+latex: \vfill
+
+- Útil em ambientes distribuídos (processos em máquinas diferentes)
+- Exemplo: programa de bate-papo trocando mensagens pela rede
+
+#+latex: \vfill
+
+Duas operações fundamentais
+
+- =send(message)= — envia uma mensagem
+- =receive(message)= — recebe uma mensagem
+
+* Tipos de Sistemas de Transmissão de Mensagens
+
+Mensagens podem ter tamanho _fixo_ ou _variável_
+
+- Tamanho fixo: implementação no sistema simples, programação difícil
+- Tamanho variável: implementação complexa, programação simples
+
+#+latex: \vfill
+
+Para que P e Q se comuniquem, um _link de comunicação_ deve existir
+
+#+latex: \vfill
+
+Métodos para implementar o link logicamente
+
+- Comunicação direta ou indireta
+- Comunicação síncrona ou assíncrona
+- Armazenamento em buffer automático ou explícito
+
+* 3.4.2.1 Comunicação Direta — Nomeação Simétrica
+
+Cada processo deve nomear explicitamente o receptor ou emissor
+
+- =send(P, message)= — envia uma mensagem ao processo P
+- =receive(Q, message)= — recebe uma mensagem do processo Q
+
+#+latex: \vfill
+
+Propriedades do link nesse esquema
+
+- Link estabelecido automaticamente entre cada par de processos
+- Um link é associado a exatamente dois processos
+- Entre cada par de processos, existe exatamente um link
+
+#+latex: \vfill
+
+- Esquema simétrico: tanto emissor quanto receptor nomeiam um ao outro
+
+* 3.4.2.1 Comunicação Direta — Nomeação Assimétrica
+
+Variante: apenas o emissor nomeia o receptor
+
+- =send(P, message)= — envia uma mensagem ao processo P
+- =receive(id, message)= — recebe de qualquer processo; =id= indica o emissor
+
+#+latex: \vfill
+
+Desvantagem de ambos os esquemas (simétrico e assimétrico)
+
+- Modularidade limitada: identificadores de processos _hard-coded_
+- Alteração de um identificador exige verificação de todas as definições
+- Técnicas com tratamento indireto são preferíveis
+
+* 3.4.2.1 Comunicação Indireta
+
+Mensagens são enviadas e recebidas de _caixas postais_ (mailboxes / portas)
+
+- Caixa postal: objeto com identificação exclusiva
+- Dois processos se comunicam apenas se compartilham uma caixa postal
+
+#+latex: \vfill
+
+- =send(A, message)= — envia uma mensagem para a caixa postal A
+- =receive(A, message)= — recebe uma mensagem da caixa postal A
+
+#+latex: \vfill
+
+Propriedades do link
+
+- Link entre um par de processos apenas se há caixa postal compartilhada
+- Um link pode estar associado a mais de dois processos
+- Entre um par de processos, podem existir vários links (uma caixa cada)
+
+* 3.4.2.1 Comunicação Indireta — Múltiplos Receptores
+
+P1 envia para caixa postal A; P2 e P3 executam =receive(A)=. Quem recebe?
+
+#+latex: \vfill
+
+Estratégias possíveis
+
+- Associar o link a no máximo dois processos
+- Permitir que no máximo um processo execute =receive= por vez
+- O sistema seleciona arbitrariamente (ex.: algoritmo round-robin)
+
+* 3.4.2.1 Comunicação Indireta — Propriedade da Caixa Postal
+
+Caixa postal de _propriedade de um processo_
+
+- Proprietário: somente recebe mensagens pela caixa postal
+- Usuário: somente envia mensagens para a caixa postal
+- A caixa postal desaparece quando o processo proprietário encerra
+
+#+latex: \vfill
+
+Caixa postal de _propriedade do sistema operacional_
+
+- Existência independente, não vinculada a nenhum processo
+- O sistema operacional fornece operações para criar, enviar, receber e excluir
+- O processo criador é o proprietário por padrão
+- Privilégio de propriedade pode ser transferido via chamadas de sistema
+
+* 3.4.2.2 Sincronização
+
+Transmissão de mensagens pode ser _com bloqueio_ (síncrona) ou _sem bloqueio_ (assíncrona)
+
+#+latex: \vfill
+
+- Envio com bloqueio: emissor aguarda até que o receptor (ou caixa postal) receba
+- Envio sem bloqueio: emissor envia e retoma a execução imediatamente
+- Recebimento com bloqueio: receptor aguarda até que uma mensagem esteja disponível
+- Recebimento sem bloqueio: receptor obtém mensagem válida ou mensagem nula
+
+#+latex: \vfill
+
+Quando ambos são com bloqueio ocorre um _ponto de encontro_ (rendezvous)
+
+- A solução do problema produtor-consumidor torna-se trivial
+
+* 3.4.2.3 Armazenamento em Buffer
+
+Mensagens trocadas residem em uma _fila temporária_
+
+#+latex: \vfill
+
+Capacidade _zero_
+
+- Fila com tamanho máximo zero; nenhuma mensagem pode ficar em espera
+- Emissor bloqueado até que o receptor receba (sem armazenamento em buffer)
+
+#+latex: \vfill
+
+Capacidade _limitada_
+
+- Fila com tamanho finito n; até n mensagens em espera
+- Emissor bloqueado somente quando a fila está cheia
+
+#+latex: \vfill
+
+Capacidade _ilimitada_
+
+- Fila potencialmente infinita; emissor nunca é bloqueado
+- Conhecido como armazenamento em buffer automático
+
+* 3.5 Exemplo: Memória Compartilhada POSIX
+
+A API POSIX usa _arquivos mapeados para a memória_ para a memória compartilhada
+
+#+latex: \vfill
+
+** Produtor                                                        :BMCOL:
+   :PROPERTIES:
+   :BEAMER_col: 0.5
+   :END:
+
+#+BEGIN_SRC C
+/* cria objeto de mem. compartilhada */
+shm_fd = shm_open(name,
+    O_CREAT | O_RDWR, 0666);
+/* define o tamanho em bytes */
+ftruncate(shm_fd, 4096);
+/* mapeia na memória */
+ptr = mmap(0, SIZE,
+    PROT_WRITE, MAP_SHARED,
+    shm_fd, 0);
+/* grava na memória compartilhada */
+sprintf(ptr, "%s", message);
+#+END_SRC
+
+** Consumidor                                                      :BMCOL:
+   :PROPERTIES:
+   :BEAMER_col: 0.5
+   :END:
+
+#+BEGIN_SRC C
+/* abre objeto de mem. compartilhada */
+shm_fd = shm_open(name,
+    O_RDONLY, 0666);
+/* mapeia na memória */
+ptr = mmap(0, SIZE,
+    PROT_READ, MAP_SHARED,
+    shm_fd, 0);
+/* lê da memória compartilhada */
+printf("%s", (char *)ptr);
+/* remove o objeto */
+shm_unlink(name);
+#+END_SRC
+
+* 3.6 Comunicação em Sistemas Cliente-Servidor
+
+Além de memória compartilhada e transmissão de mensagens, há outras estratégias para sistemas cliente-servidor
+
+#+latex: \vfill
+
+- Sockets: endereço IP + porta; base para comunicação em rede
+- RPC (Remote Procedure Call): abstrai chamadas de procedimento entre máquinas
+- Pipes: canal de comunicação entre processos
+
+#+latex: \vfill
+
+- Referência principal: Silberschatz — Seção 3.6
+
+* 3.6.3 Pipes
+
+Um pipe atua como canal de comunicação entre dois processos
+
+#+latex: \vfill
+
+Quatro questões de projeto a considerar
+
+- A comunicação é bidirecional ou unidirecional?
+- Se bidirecional: half duplex ou full duplex?
+- É necessário um relacionamento pai-filho entre os processos?
+- Os pipes funcionam através de uma rede ou apenas na mesma máquina?
+
+* 3.6.3.1 Pipes Comuns
+
+Pipes comuns seguem o modelo produtor-consumidor
+
+- Produtor grava na extremidade de escrita (=fd[1]=)
+- Consumidor lê na extremidade de leitura (=fd[0]=)
+- Comunicação _unidirecional_; dois pipes para comunicação bidirecional
+
+#+latex: \vfill
+
+Criação em UNIX com a função =pipe(int fd[])=
+
+- =fd[0]=: extremidade de leitura
+- =fd[1]=: extremidade de escrita
+- Pipes são tratados como arquivos: acessíveis com =read()= e =write()=
+
+#+latex: \vfill
+
+- Um pipe comum não pode ser acessado fora do processo criador
+- Normalmente o pai cria o pipe e o filho herda via =fork()=
+
+#+latex: \vfill
+
+[[./S_fig3.24.png]]
+
+* 3.6.3.1 Pipes Comuns — Exemplo
+
+#+BEGIN_SRC C
+#include <sys/types.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#define BUFFER_SIZE 25
+#define READ_END  0
+#define WRITE_END 1
+int main(void) {
+  char write_msg[BUFFER_SIZE] = "Greetings";
+  char read_msg[BUFFER_SIZE];
+  int fd[2];
+  pid_t pid;
+  pipe(fd);           /* cria o pipe */
+  pid = fork();       /* cria processo-filho */
+  if (pid > 0) {      /* pai: grava no pipe */
+    close(fd[READ_END]);
+    write(fd[WRITE_END], write_msg, strlen(write_msg)+1);
+    close(fd[WRITE_END]);
+  } else {            /* filho: lê do pipe */
+    close(fd[WRITE_END]);
+    read(fd[READ_END], read_msg, BUFFER_SIZE);
+    printf("read %s", read_msg);
+    close(fd[READ_END]);
+  }
+  return 0;
+}
+#+END_SRC
+
+* 3.6.3.2 Pipes Nomeados
+
+Pipes comuns existem apenas durante a comunicação entre os processos
+
+#+latex: \vfill
+
+Pipes nomeados são muito mais poderosos
+
+- Comunicação pode ser bidirecional
+- Nenhum relacionamento pai-filho é necessário
+- Vários processos podem usar o mesmo pipe nomeado
+- Continuam a existir após os processos encerrarem
+
+#+latex: \vfill
+
+Em UNIX, pipes nomeados são chamados de _FIFOs_
+
+- Criados com =mkfifo()=; manipulados com =open()=, =read()=, =write()=, =close()=
+- Aparecem como arquivos comuns no sistema de arquivos
+- Persistem até serem explicitamente excluídos
+- Apenas transmissão half duplex; dois FIFOs para comunicação bidirecional
+- Processos em comunicação devem residir na mesma máquina
+
+* Referências
+
+- Referência principal: Silberschatz, Galvin & Gagne — _Fundamentos de Sistemas Operacionais_, 9ª ed.
+  - 3.4 Comunicação Interprocessos
+  - 3.5 Exemplos de Sistemas IPC (Memória Compartilhada POSIX)
+  - 3.6 Comunicação em Sistemas Cliente-Servidor (Pipes)
