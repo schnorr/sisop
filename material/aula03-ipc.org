@@ -326,7 +326,9 @@ Existem outras estratégias para sistemas cliente-servidor
 
 * Pipes
 
+#+begin_center
 Um pipe atua como canal de comunicação entre dois processos
+#+end_center
 
 #+latex: \vfill
 
@@ -355,12 +357,12 @@ Criação em UNIX com a função =pipe(int fd[])=
 
 #+latex: \vfill
 
-- Um pipe comum não pode ser acessado fora do processo criador
-- Normalmente o pai cria o pipe e o filho herda via =fork()=
+[[./S_fig3.24.png]]
 
 #+latex: \vfill
 
-[[./S_fig3.24.png]]
+- Um pipe comum não pode ser acessado fora do processo criador
+- Normalmente o pai cria o pipe e o filho herda via =fork()=
 
 * Pipes Comuns — Exemplo
 
@@ -375,8 +377,8 @@ Criação em UNIX com a função =pipe(int fd[])=
 int main(void) {
   char write_msg[BUFFER_SIZE] = "Greetings";
   char read_msg[BUFFER_SIZE];
-  int fd[2];
-  pid_t pid;
+  int fd[2] = {0};
+  pid_t pid = {0};
   pipe(fd);           /* cria o pipe */
   pid = fork();       /* cria processo-filho */
   if (pid > 0) {      /* pai: grava no pipe */
@@ -395,24 +397,26 @@ int main(void) {
 
 * Pipes Nomeados
 
+#+begin_center
 Pipes comuns existem apenas durante a comunicação entre os processos
+#+end_center
 
 #+latex: \vfill
 
-Pipes nomeados são muito mais poderosos
+** Pipes nomeados são muito mais poderosos
 
 - Comunicação pode ser bidirecional
 - Nenhum relacionamento pai-filho é necessário
 - Vários processos podem usar o mesmo pipe nomeado
 - Continuam a existir após os processos encerrarem
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-Em UNIX, pipes nomeados são chamados de _FIFOs_
+** Em UNIX, pipes nomeados são chamados de _FIFOs_
 
-- Criados com =mkfifo()=; manipulados com =open()=, =read()=, =write()=, =close()=
+- Criados com =mkfifo()=; usamos =open()=, =read()=, =write()=, =close()=
 - Aparecem como arquivos comuns no sistema de arquivos
-- Persistem até serem explicitamente excluídos
+  - Persistem até serem explicitamente excluídos
 - Apenas transmissão half duplex; dois FIFOs para comunicação bidirecional
 - Processos em comunicação devem residir na mesma máquina
 
