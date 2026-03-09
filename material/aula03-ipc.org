@@ -26,131 +26,148 @@
 - Exemplo: Memória Compartilhada POSIX (seção 3.5)
 - IPC \to Pipes (seção 3.6.3)
 
+* Revisão: =fork()=
+
+Incluindo o processo-pai inicial, quantos processos são criados pelo
+programa:
+
+#+begin_src C
+#include <stdio.h>
+#include <unistd.h>
+int main() {
+  int i;
+  for (i = 0; i < 4; i++) {
+    fork();
+  }
+  return 0;
+}
+#+end_src
+
+#+latex: \pause\vfill
+
+| Antes do fork()  | Processos existentes | Novos criados | Total após |
+|------------------+----------------------+---------------+------------|
+| Iteração 0 (i=0) |                    1 |             1 |          2 |
+| Iteração 1 (i=1) |                    2 |             2 |          4 |
+| Iteração 2 (i=2) |                    4 |             4 |          8 |
+| Iteração 3 (i=3) |                    8 |             8 |         16 |
+
 * Revisão: Ciclos de operação de CPU e E/S
 
 [[./S_fig3.4.png]]
 
 * Revisão: Filas de processos e modelos de estado
 
-** Left                                                             :BMCOL:
-   :PROPERTIES:
-   :BEAMER_col: 0.5
-   :END:
-
-[[./S_fig3.6.png]]
-
-** Right                                                            :BMCOL:
-   :PROPERTIES:
-   :BEAMER_col: 0.5
-   :END:
-
+#+attr_latex: :width .6\linewidth
 [[./S_fig3.7.png]]
 
+#+latex: \vfill\pause
+
+#+attr_latex: :width .6\linewidth
+[[./S_fig3.6.png]]
+
+
 * Introdução à Comunicação entre Processos (IPC)
-
-** Texto                                                           :BMCOL:
-   :PROPERTIES:
-   :BEAMER_col: 0.55
-   :END:
-
-Processos concorrentes: _independentes_ ou _cooperativos_
-
+** Processos concorrentes: _independentes_ ou _cooperativos_
 - Independente: não compartilha dados, não afeta outros
 - Cooperativo: compartilha dados ou afeta outros processos
-
-Motivações para processos cooperativos
-
+** Motivações para processos cooperativos
 - Compartilhamento de informações
 - Aumento de velocidade com paralelismo
-- Modularidade do sistema
-- Conveniência do usuário
+- Modularidade do sistemaL
+#+latex: \pause
 
-Dois modelos de IPC
+** Left                                                              :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.4
+:END:
 
-- Memória compartilhada: leitura/escrita em região comum
-- Transmissão de mensagens: troca de mensagens entre processos
+*** Dois modelos de IPC
 
-** Figura                                                          :BMCOL:
-   :PROPERTIES:
-   :BEAMER_col: 0.45
-   :END:
+- (a) *Transmissão de mensagens: troca de mensagens entre processos*
+- (b) Memória compartilhada: leitura/escrita em região comum
+
+** Right                                                             :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.6
+:END:
 
 [[./S_fig3.12.png]]
 
-* 3.4.2 Sistemas de Transmissão de Mensagens
+* 3.4 Sistemas de Transmissão de Mensagens
 
-A transmissão de mensagens permite comunicação e sincronização sem espaço de endereçamento compartilhado
+Comunicação e sincronização sem espaço de endereçamento compartilhado
 
 #+latex: \vfill
 
 - Útil em ambientes distribuídos (processos em máquinas diferentes)
 - Exemplo: programa de bate-papo trocando mensagens pela rede
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-Duas operações fundamentais
+** Duas operações fundamentais
 
 - =send(message)= — envia uma mensagem
 - =receive(message)= — recebe uma mensagem
 
 * Tipos de Sistemas de Transmissão de Mensagens
 
-Mensagens podem ter tamanho _fixo_ ou _variável_
+** Mensagens podem ter tamanho _fixo_ ou _variável_
 
 - Tamanho fixo: implementação no sistema simples, programação difícil
 - Tamanho variável: implementação complexa, programação simples
 
-#+latex: \vfill
+#+latex: \vfill\vspace{2cm}
 
 Para que P e Q se comuniquem, um _link de comunicação_ deve existir
 
 #+latex: \vfill
 
-Métodos para implementar o link logicamente
+** Métodos para implementar o link logicamente
 
 - Comunicação direta ou indireta
 - Comunicação síncrona ou assíncrona
 - Armazenamento em buffer automático ou explícito
 
-* 3.4.2.1 Comunicação Direta — Nomeação Simétrica
-
-Cada processo deve nomear explicitamente o receptor ou emissor
+* Comunicação Direta — Nomeação Simétrica
+** Cada processo deve nomear explicitamente o receptor ou emissor
 
 - =send(P, message)= — envia uma mensagem ao processo P
 - =receive(Q, message)= — recebe uma mensagem do processo Q
 
 #+latex: \vfill
 
-Propriedades do link nesse esquema
+** Propriedades do link nesse esquema
 
 - Link estabelecido automaticamente entre cada par de processos
 - Um link é associado a exatamente dois processos
 - Entre cada par de processos, existe exatamente um link
 
-#+latex: \vfill
+#+latex: \vspace{1cm}
 
 - Esquema simétrico: tanto emissor quanto receptor nomeiam um ao outro
 
-* 3.4.2.1 Comunicação Direta — Nomeação Assimétrica
+* Comunicação Direta — Nomeação Assimétrica
 
-Variante: apenas o emissor nomeia o receptor
+** Variante assimétrica: apenas o emissor nomeia o receptor
 
 - =send(P, message)= — envia uma mensagem ao processo P
-- =receive(id, message)= — recebe de qualquer processo; =id= indica o emissor
+- =receive(id, message)= — recebe de qualquer processo;
+  - =id= indica o emissor e é "preenchido" pelo SO
 
-#+latex: \vfill
+#+latex: \vfill\vspace{1cm}
 
-Desvantagem de ambos os esquemas (simétrico e assimétrico)
+** Desvantagem de ambos os esquemas (simétrico e assimétrico)
 
 - Modularidade limitada: identificadores de processos _hard-coded_
 - Alteração de um identificador exige verificação de todas as definições
-- Técnicas com tratamento indireto são preferíveis
+- Técnicas com tratamento indireto são preferíveis (mais flexibilidade)
 
-* 3.4.2.1 Comunicação Indireta
+* Comunicação Indireta
 
-Mensagens são enviadas e recebidas de _caixas postais_ (mailboxes / portas)
+** Mensagens são enviadas e recebidas de _caixas postais_
 
-- Caixa postal: objeto com identificação exclusiva
+- Caixa postal: objeto com identificação exclusiva (/mailboxes/ / portas)
 - Dois processos se comunicam apenas se compartilham uma caixa postal
 
 #+latex: \vfill
@@ -158,94 +175,104 @@ Mensagens são enviadas e recebidas de _caixas postais_ (mailboxes / portas)
 - =send(A, message)= — envia uma mensagem para a caixa postal A
 - =receive(A, message)= — recebe uma mensagem da caixa postal A
 
-#+latex: \vfill
+#+latex: \vspace{1cm}
 
-Propriedades do link
+** Propriedades do link
 
 - Link entre um par de processos apenas se há caixa postal compartilhada
 - Um link pode estar associado a mais de dois processos
 - Entre um par de processos, podem existir vários links (uma caixa cada)
 
-* 3.4.2.1 Comunicação Indireta — Múltiplos Receptores
+* Comunicação Indireta — Múltiplos Receptores
+
+** Situação
 
 P1 envia para caixa postal A; P2 e P3 executam =receive(A)=. Quem recebe?
 
-#+latex: \vfill
+#+latex: \vfill\vspace{1cm}\pause
 
-Estratégias possíveis
+** Estratégias possíveis
 
 - Associar o link a no máximo dois processos
 - Permitir que no máximo um processo execute =receive= por vez
-- O sistema seleciona arbitrariamente (ex.: algoritmo round-robin)
+- O sistema seleciona quem recebe (ex.: algoritmo round-robin)
 
-* 3.4.2.1 Comunicação Indireta — Propriedade da Caixa Postal
+* Comunicação Indireta — Propriedade da Caixa Postal
 
-Caixa postal de _propriedade de um processo_
+** Caixa postal de _propriedade de um processo_
 
 - Proprietário: somente recebe mensagens pela caixa postal
 - Usuário: somente envia mensagens para a caixa postal
 - A caixa postal desaparece quando o processo proprietário encerra
 
-#+latex: \vfill
+#+latex: \vfill\vspace{1cm}\pause
 
-Caixa postal de _propriedade do sistema operacional_
+** Caixa postal de _propriedade do sistema operacional_
 
 - Existência independente, não vinculada a nenhum processo
 - O sistema operacional fornece operações para criar, enviar, receber e excluir
 - O processo criador é o proprietário por padrão
 - Privilégio de propriedade pode ser transferido via chamadas de sistema
 
-* 3.4.2.2 Sincronização
-
-Transmissão de mensagens pode ser _com bloqueio_ (síncrona) ou _sem bloqueio_ (assíncrona)
-
-#+latex: \vfill
-
-- Envio com bloqueio: emissor aguarda até que o receptor (ou caixa postal) receba
-- Envio sem bloqueio: emissor envia e retoma a execução imediatamente
-- Recebimento com bloqueio: receptor aguarda até que uma mensagem esteja disponível
-- Recebimento sem bloqueio: receptor obtém mensagem válida ou mensagem nula
+* Sincronização
+** Transmissão de mensagens pode ser
+- _com bloqueio_ (síncrona) ou
+- _sem bloqueio_ (assíncrona)
 
 #+latex: \vfill
 
-Quando ambos são com bloqueio ocorre um _ponto de encontro_ (rendezvous)
+** Comportamento
+
+- Envio bloqueante: emissor aguarda até o receptor (ou caixa postal) receba
+- Envio assíncrono: emissor envia e retoma a execução imediatamente
+- Recebimento bloqueante: receptor aguarda até uma mensagem chegar
+- Recebimento assíncrono: receptor obtém mensagem ou requerimento
+  - Necessita empregar o requerimento
+
+#+latex: \vspace{1cm}\pause
+
+** Protocolo de /rendezvous/
+
+Quando ambos são com bloqueio ocorre um _ponto de encontro_ (/rendezvous/)
 
 - A solução do problema produtor-consumidor torna-se trivial
 
-* 3.4.2.3 Armazenamento em Buffer
-
+* Armazenamento em Buffer
 Mensagens trocadas residem em uma _fila temporária_
 
 #+latex: \vfill
 
-Capacidade _zero_
+** Capacidade _zero_
 
 - Fila com tamanho máximo zero; nenhuma mensagem pode ficar em espera
 - Emissor bloqueado até que o receptor receba (sem armazenamento em buffer)
 
 #+latex: \vfill
 
-Capacidade _limitada_
+** Capacidade _limitada_
 
 - Fila com tamanho finito n; até n mensagens em espera
 - Emissor bloqueado somente quando a fila está cheia
 
 #+latex: \vfill
 
-Capacidade _ilimitada_
+** Capacidade _ilimitada_
 
-- Fila potencialmente infinita; emissor nunca é bloqueado
+- Fila potencialmente infinita (memória); emissor nunca é bloqueado
 - Conhecido como armazenamento em buffer automático
 
 * 3.5 Exemplo: Memória Compartilhada POSIX
 
-A API POSIX usa _arquivos mapeados para a memória_ para a memória compartilhada
+API POSIX \to https://en.wikipedia.org/wiki/POSIX
+
+Usa _arquivos mapeados para a memória_ para a memória compartilhada
 
 #+latex: \vfill
 
-** Produtor                                                        :BMCOL:
+** Produtor                                                  :B_block:BMCOL:
    :PROPERTIES:
    :BEAMER_col: 0.5
+   :BEAMER_env: block
    :END:
 
 #+BEGIN_SRC C
@@ -253,7 +280,7 @@ A API POSIX usa _arquivos mapeados para a memória_ para a memória compartilhad
 shm_fd = shm_open(name,
     O_CREAT | O_RDWR, 0666);
 /* define o tamanho em bytes */
-ftruncate(shm_fd, 4096);
+ftruncate(shm_fd, SIZE);
 /* mapeia na memória */
 ptr = mmap(0, SIZE,
     PROT_WRITE, MAP_SHARED,
@@ -262,9 +289,10 @@ ptr = mmap(0, SIZE,
 sprintf(ptr, "%s", message);
 #+END_SRC
 
-** Consumidor                                                      :BMCOL:
+** Consumidor                                                :B_block:BMCOL:
    :PROPERTIES:
    :BEAMER_col: 0.5
+   :BEAMER_env: block
    :END:
 
 #+BEGIN_SRC C
@@ -283,19 +311,20 @@ shm_unlink(name);
 
 * 3.6 Comunicação em Sistemas Cliente-Servidor
 
-Além de memória compartilhada e transmissão de mensagens, há outras estratégias para sistemas cliente-servidor
+Vimos que a comunicação entre processos pode ocorrer
+- Via memória compartilhada
+- Por transmissão de mensagens
+Existem outras estratégias para sistemas cliente-servidor
+- Podem ser empregadas também em uma única máquina também
 
 #+latex: \vfill
 
+** Estratégias
 - Sockets: endereço IP + porta; base para comunicação em rede
-- RPC (Remote Procedure Call): abstrai chamadas de procedimento entre máquinas
-- Pipes: canal de comunicação entre processos
+- RPC (Remote Procedure Call): abstrai chamadas de função entre máquinas
+- *Pipes: canal de comunicação entre processos*
 
-#+latex: \vfill
-
-- Referência principal: Silberschatz — Seção 3.6
-
-* 3.6.3 Pipes
+* Pipes
 
 Um pipe atua como canal de comunicação entre dois processos
 
@@ -308,7 +337,7 @@ Quatro questões de projeto a considerar
 - É necessário um relacionamento pai-filho entre os processos?
 - Os pipes funcionam através de uma rede ou apenas na mesma máquina?
 
-* 3.6.3.1 Pipes Comuns
+* Pipes Comuns
 
 Pipes comuns seguem o modelo produtor-consumidor
 
@@ -333,7 +362,7 @@ Criação em UNIX com a função =pipe(int fd[])=
 
 [[./S_fig3.24.png]]
 
-* 3.6.3.1 Pipes Comuns — Exemplo
+* Pipes Comuns — Exemplo
 
 #+BEGIN_SRC C
 #include <sys/types.h>
@@ -364,7 +393,7 @@ int main(void) {
 }
 #+END_SRC
 
-* 3.6.3.2 Pipes Nomeados
+* Pipes Nomeados
 
 Pipes comuns existem apenas durante a comunicação entre os processos
 
