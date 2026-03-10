@@ -26,9 +26,8 @@
 - Algoritmos não-preemptivos: FIFO/FCFS, SJF
 
 * Revisão: =shm_unlink= e acesso posterior ao ponteiro
-
 ** Produtor                                                        :BMCOL:
-   :PROPERTIES:
+:PROPERTIES:
    :BEAMER_col: 0.5
    :END:
 
@@ -59,7 +58,7 @@ int main() {
 #+END_SRC
 
 ** Consumidor                                                      :BMCOL:
-   :PROPERTIES:
+:PROPERTIES:
    :BEAMER_col: 0.5
    :END:
 
@@ -80,7 +79,7 @@ int main() {
     shm_fd, 0);
   /* remove o objeto ANTES de ler */
   shm_unlink(name);
-  /* ptr ainda acessível? */
+  /* ptr ainda acessível? Sim, ver "man mmap". */
   printf("%s", (char *)ptr);
   return 0;
 }
@@ -127,20 +126,20 @@ int main(void) {
 
 * Escalonamento: Motivação
 
-Em sistemas multiprogramados, múltiplos processos ou threads competem pela CPU
+Em sistemas multiprogramados, múltiplos processos competem pela CPU
 
-- Sempre que dois ou mais processos estão simultaneamente no estado pronto
-- É preciso escolher qual processo será executado em seguida
+- Sempre que dois ou mais processos estão no estado pronto
+  - É preciso escolher qual processo será executado em seguida
 - O _escalonador_ é a parte do SO que faz essa escolha
 - O _algoritmo de escalonamento_ é o critério usado pelo escalonador
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-- Em computadores pessoais: geralmente um único processo ativo, CPU abundante
+- Em computadores pessoais: geralmente um processo ativo, CPU sobra
 - Em servidores em rede: múltiplos processos disputam a CPU continuamente
 - Em dispositivos móveis: duração da bateria impõe restrições adicionais
 
-* 2.4.1 Introdução ao Escalonamento
+* Introdução ao Escalonamento
 
 Trocar de processo (contexto) é uma operação cara
 
@@ -160,17 +159,19 @@ Trocar de processo (contexto) é uma operação cara
 
 Quase todos os processos alternam _surtos de CPU_ com _esperas de E/S_
 
-- Processos _limitados pela CPU_: longos surtos de CPU, esperas de E/S esporádicas
-- Processos _limitados pela E/S_: curtos surtos de CPU, esperas de E/S frequentes
-- Fator chave: comprimento do surto de CPU (não o do surto de E/S)
+- Processos _limitados pela CPU_: longos surtos de CPU (E/S esporádicas)
+- Processos _limitados pela E/S_: curtos surtos de CPU (E/S frequentes)
 
-#+latex: \vfill
+#+attr_latex: :width .6\linewidth
+[[./img/T_fig2.39.png]]
 
-- À medida que CPUs ficam mais rápidas, processos tendem a ser mais limitados pela E/S
-- Processos limitados pela E/S devem receber a CPU rapidamente para emitir operações de disco
-- São necessários vários processos limitados pela E/S para manter a CPU ocupada
+#+latex: \vfill\pause
 
-* Velocidade da CPU e E/S
+Com CPUs mais rápidas, processos tendem a ser mais limitados pela E/S
+- /Limitados E/S/ \to devem receber a CPU rapidamente
+- Precisamos de vários /Limitados E/S/ para manter a CPU ocupada
+
+* Reflexão: velocidade da CPU e E/S                                :noexport:
 
 CPUs melhoram muito mais rápido do que discos
 
@@ -185,22 +186,30 @@ CPUs melhoram muito mais rápido do que discos
 
 * Quando Tomar Decisões de Escalonamento
 
-1. Quando um novo processo é criado: executar o pai ou o filho?
-2. Quando um processo termina: escolher outro processo do conjunto de prontos
-3. Quando um processo bloqueia em E/S, semáforo ou outra razão
-4. Quando ocorre uma interrupção de E/S: executar o processo recém-desbloqueado?
+#+attr_latex: :width .5\linewidth
+[[./S_fig3.2.png]]
 
-#+latex: \vfill
+1. Quando um processo passa do estado de execução para o estado de espera
+   - Fez E/S ou fez =wait= no processo filho
+2. Quando um processo passa do estado de execução para o estado de pronto
+   - Interrupção de tempo
+3. Quando um processo passa do estado de espera para o estado de pronto
+   - Requisição de E/S terminou
+4. Quando um processo termina
 
-- Silberschatz numera de forma similar: execução \to espera, execução \to pronto, espera \to pronto, término
-- Se o escalonamento ocorre apenas nos casos 1 (término) e bloqueio voluntário: _sem preempção_
-- Se o escalonamento também ocorre nas demais situações: _com preempção_
+#+latex: \vfill\pause
+
+** A _decisão de escalonamento_ é tomada
+- Somente nas situações 1 e 4
+  - Escalonamento sem preempção (chamado também de cooperativo)
+- Também nas situações 2 e 3
+  - Escalonamento com preempção
 
 * Escalonamento Com e Sem Preempção
 
 Algoritmo _sem preempção_ (cooperativo)
 
-- Escolhe um processo e o deixa executar até que bloqueie ou libere voluntariamente a CPU
+- Escolhe um processo, este executa até bloquear ou terminar
 - Nenhuma decisão de escalonamento durante interrupções de relógio
 - Simples de implementar; não requer hardware especial (timer)
 
@@ -208,7 +217,7 @@ Algoritmo _sem preempção_ (cooperativo)
 
 Algoritmo _com preempção_
 
-- Escolhe um processo e o deixa executar por no máximo um intervalo de tempo fixado
+- Escolhe um processo, o executa por no máximo um intervalo de tempo
 - Ao fim do intervalo: processo suspenso e novo processo escolhido
 - Requer interrupção de relógio periódica
 - Pode causar condições de corrida em dados compartilhados
@@ -225,9 +234,9 @@ Todos os sistemas
 
 Sistemas em lote
 
-- Vazão (throughput): maximizar o número de tarefas concluídas por hora
-- Tempo de retorno (turnaround): minimizar o tempo entre submissão e término
-- Utilização de CPU: manter a CPU ocupada o tempo todo
+- Alta vazão (throughput): o número de tarefas concluídas por hora
+- Menor tempo de retorno (turnaround): tempo entre submissão e término
+- Alta utilização de CPU
 
 #+latex: \vfill
 
@@ -238,38 +247,46 @@ Sistemas interativos e de tempo real
 
 * Métricas para Avaliar Algoritmos de Escalonamento
 
-Critérios do Silberschatz (Seção 6.2)
-
 - _Utilização da CPU_: manter a CPU tão ocupada quanto possível (40–90%)
-- _Throughput_: número de processos concluídos por unidade de tempo
-- _Tempo de turnaround_: intervalo entre submissão e conclusão do processo
+- _Vazão_: número de processos concluídos por unidade de tempo
+- _Tempo de retorno_: intervalo entre submissão e conclusão do processo
+  - Espera na fila de prontos + Exec. na CPU + Exec. de E/S
 - _Tempo de espera_: soma dos períodos gastos aguardando na fila de prontos
 - _Tempo de resposta_: tempo até a primeira resposta ser produzida
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-- Turnaround = espera na fila de prontos + execução na CPU + execução de E/S
-- Tempo de espera e turnaround são afetados pela ordem de execução dos processos
-- Em geral: maximizar utilização e throughput; minimizar os demais
+- Afetados pela ordem de execução dos processos
+  - Tempo de espera
+  - Tempo de retorno
 
-* 6.3 Algoritmos de Escalonamento
+#+latex: \vfill\pause
+    
+- Em geral, procura-se
+  - Maximizar ``Utilização da CPU''
+  - Maximizar ``Vazão''
+  - Minimizar os demais
+
+* Algoritmos de Escalonamento
 
 O escalonamento da CPU decide qual processo da fila de prontos recebe a CPU
 
 #+latex: \vfill
 
-Algoritmos abordados neste curso
+Algoritmos que abordaremos
 
-- 6.3.1 Primeiro a Chegar, Primeiro a Ser Atendido (FCFS)
-- 6.3.2 Menor Job Primeiro (SJF)
-- 6.3.3 Escalonamento por Prioridades
-- 6.3.4 Round-Robin
-- 6.3.5 Filas Multiníveis
-- 6.3.6 Filas Multiníveis com Retroalimentação
+- Primeiro a Chegar, Primeiro a Ser Atendido (FCFS)
+- Menor Job Primeiro (SJF)
+- Escalonamento por Prioridades
+- Round-Robin
+- Filas Multiníveis
+- Filas Multiníveis com Retroalimentação
 
 #+latex: \vfill
 
-- Nesta aula: algoritmos não-preemptivos FCFS e SJF
+- Nesta aula: algoritmos não-preemptivos
+  - FCFS
+  - SJF
 
 * FCFS: Primeiro a Chegar, Primeiro a Ser Atendido
 
