@@ -1,0 +1,370 @@
+# -*- coding: utf-8 -*-
+# -*- mode: org -*-
+#+startup: beamer overview indent
+#+LANGUAGE: pt-br
+#+TAGS: noexport(n)
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+EXPORT_SELECT_TAGS: export
+
+#+Title: Sistemas Operacionais
+#+Subtitle: *Escalonamento de CPU I*
+#+Author: Prof. Lucas Mello Schnorr (UFRGS)
+#+Date: \copyleft
+
+#+LaTeX_CLASS: beamer
+#+LaTeX_CLASS_OPTIONS: [xcolor=dvipsnames,10pt]
+#+OPTIONS: H:1 num:t toc:nil \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
+#+LATEX_HEADER: \input{org-babel.tex}
+
+* Estrutura da aula
+
+- Revisão da aula anterior (IPC \to Pipes)
+  - O que acontece se eu acessar o =ptr= depois do =shm_unlink=?
+  - Como fazer dois processos filhos se comunicarem?
+- Conceitos de escalonamento
+- Critérios (utilização, throughput, turnaround, tempo de espera)
+- Algoritmos não-preemptivos: FIFO/FCFS, SJF
+
+* Revisão: =shm_unlink= e acesso posterior ao ponteiro
+
+** Produtor                                                        :BMCOL:
+   :PROPERTIES:
+   :BEAMER_col: 0.5
+   :END:
+
+#+BEGIN_SRC C :tangle shm-exemplo-produtor.c
+#include <stdio.h>
+#include <string.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+int main() {
+  const int SIZE = 4096;
+  const char *name = "OS";
+  const char *msg0 = "Hello";
+  const char *msg1 = "World!";
+  int shm_fd;
+  void *ptr;
+  shm_fd = shm_open(name,
+    O_CREAT | O_RDWR, 0666);
+  ftruncate(shm_fd, SIZE);
+  ptr = mmap(0, SIZE,
+    PROT_WRITE, MAP_SHARED,
+    shm_fd, 0);
+  sprintf(ptr, "%s", msg0);
+  ptr += strlen(msg0);
+  sprintf(ptr, "%s", msg1);
+  return 0;
+}
+#+END_SRC
+
+** Consumidor                                                      :BMCOL:
+   :PROPERTIES:
+   :BEAMER_col: 0.5
+   :END:
+
+#+BEGIN_SRC C :tangle shm-exemplo-consumidor.c
+#include <stdio.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+int main() {
+  const int SIZE = 4096;
+  const char *name = "OS";
+  int shm_fd;
+  void *ptr;
+  shm_fd = shm_open(name,
+    O_RDONLY, 0666);
+  ptr = mmap(0, SIZE,
+    PROT_READ, MAP_SHARED,
+    shm_fd, 0);
+  /* remove o objeto ANTES de ler */
+  shm_unlink(name);
+  /* ptr ainda acessível? */
+  printf("%s", (char *)ptr);
+  return 0;
+}
+#+END_SRC
+
+* Revisão: Dois processos filhos comunicando via pipe
+
+#+BEGIN_SRC C :tangle pipe-exemplo-dois-filhos.c
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#define BUFFER_SIZE 25
+#define READ_END  0
+#define WRITE_END 1
+int main(void) {
+  char write_msg[BUFFER_SIZE] = "Olá do filho 1";
+  char read_msg[BUFFER_SIZE];
+  int fd[2];
+  pid_t pid;
+  pipe(fd);                            /* cria o pipe antes dos forks */
+  pid = fork();                        /* cria filho 1 (enviador) */
+  if (pid == 0) {
+    close(fd[READ_END]);
+    write(fd[WRITE_END], write_msg, strlen(write_msg)+1);
+    close(fd[WRITE_END]);
+    return 0;
+  }
+  pid = fork();                        /* cria filho 2 (receptor) */
+  if (pid == 0) {
+    close(fd[WRITE_END]);
+    read(fd[READ_END], read_msg, BUFFER_SIZE);
+    printf("filho 2 recebeu: %s\n", read_msg);
+    close(fd[READ_END]);
+    return 0;
+  }
+  close(fd[READ_END]);                 /* pai fecha ambas as extremidades */
+  close(fd[WRITE_END]);
+  wait(NULL); wait(NULL);
+  return 0;
+}
+#+END_SRC
+
+* Escalonamento: Motivação
+
+Em sistemas multiprogramados, múltiplos processos ou threads competem pela CPU
+
+- Sempre que dois ou mais processos estão simultaneamente no estado pronto
+- É preciso escolher qual processo será executado em seguida
+- O _escalonador_ é a parte do SO que faz essa escolha
+- O _algoritmo de escalonamento_ é o critério usado pelo escalonador
+
+#+latex: \vfill
+
+- Em computadores pessoais: geralmente um único processo ativo, CPU abundante
+- Em servidores em rede: múltiplos processos disputam a CPU continuamente
+- Em dispositivos móveis: duração da bateria impõe restrições adicionais
+
+* 2.4.1 Introdução ao Escalonamento
+
+Trocar de processo (contexto) é uma operação cara
+
+- Mudança do modo usuário para o modo núcleo
+- Salvar o estado do processo atual na tabela de processos
+- Salvar o mapa de memória (tabela de páginas, bits de referência)
+- Executar o algoritmo de escalonamento para escolher o próximo processo
+- Recarregar a MMU com o mapa de memória do novo processo
+- Recarregar o cache de memória (invalidado pela troca)
+
+#+latex: \vfill
+
+- Muitas trocas por segundo consomem tempo substancial de CPU
+- Um bom escalonador minimiza trocas desnecessárias
+
+* Comportamento dos processos
+
+Quase todos os processos alternam _surtos de CPU_ com _esperas de E/S_
+
+- Processos _limitados pela CPU_: longos surtos de CPU, esperas de E/S esporádicas
+- Processos _limitados pela E/S_: curtos surtos de CPU, esperas de E/S frequentes
+- Fator chave: comprimento do surto de CPU (não o do surto de E/S)
+
+#+latex: \vfill
+
+- À medida que CPUs ficam mais rápidas, processos tendem a ser mais limitados pela E/S
+- Processos limitados pela E/S devem receber a CPU rapidamente para emitir operações de disco
+- São necessários vários processos limitados pela E/S para manter a CPU ocupada
+
+* Velocidade da CPU e E/S
+
+CPUs melhoram muito mais rápido do que discos
+
+- Processos limitados pela E/S tornam-se mais comuns ao longo do tempo
+- Escalonar processos limitados pela E/S rapidamente mantém o disco ocupado
+- Manter o disco ocupado é essencial para alto desempenho do sistema
+
+#+latex: \vfill
+
+- Se processo limitado pela E/S aguarda muito, o disco fica ocioso
+- Mesclar processos limitados pela CPU e pela E/S otimiza o uso de todos os recursos
+
+* Quando Tomar Decisões de Escalonamento
+
+1. Quando um novo processo é criado: executar o pai ou o filho?
+2. Quando um processo termina: escolher outro processo do conjunto de prontos
+3. Quando um processo bloqueia em E/S, semáforo ou outra razão
+4. Quando ocorre uma interrupção de E/S: executar o processo recém-desbloqueado?
+
+#+latex: \vfill
+
+- Silberschatz numera de forma similar: execução \to espera, execução \to pronto, espera \to pronto, término
+- Se o escalonamento ocorre apenas nos casos 1 (término) e bloqueio voluntário: _sem preempção_
+- Se o escalonamento também ocorre nas demais situações: _com preempção_
+
+* Escalonamento Com e Sem Preempção
+
+Algoritmo _sem preempção_ (cooperativo)
+
+- Escolhe um processo e o deixa executar até que bloqueie ou libere voluntariamente a CPU
+- Nenhuma decisão de escalonamento durante interrupções de relógio
+- Simples de implementar; não requer hardware especial (timer)
+
+#+latex: \vfill
+
+Algoritmo _com preempção_
+
+- Escolhe um processo e o deixa executar por no máximo um intervalo de tempo fixado
+- Ao fim do intervalo: processo suspenso e novo processo escolhido
+- Requer interrupção de relógio periódica
+- Pode causar condições de corrida em dados compartilhados
+
+* Objetivos dos Algoritmos de Escalonamento
+
+Todos os sistemas
+
+- Justiça: dar a cada processo uma porção justa da CPU
+- Aplicação da política: garantir que a política estabelecida seja cumprida
+- Equilíbrio: manter todas as partes do sistema ocupadas
+
+#+latex: \vfill
+
+Sistemas em lote
+
+- Vazão (throughput): maximizar o número de tarefas concluídas por hora
+- Tempo de retorno (turnaround): minimizar o tempo entre submissão e término
+- Utilização de CPU: manter a CPU ocupada o tempo todo
+
+#+latex: \vfill
+
+Sistemas interativos e de tempo real
+
+- Tempo de resposta: responder rapidamente às requisições
+- Previsibilidade: evitar degradação da qualidade (ex.: multimídia)
+
+* Métricas para Avaliar Algoritmos de Escalonamento
+
+Critérios do Silberschatz (Seção 6.2)
+
+- _Utilização da CPU_: manter a CPU tão ocupada quanto possível (40–90%)
+- _Throughput_: número de processos concluídos por unidade de tempo
+- _Tempo de turnaround_: intervalo entre submissão e conclusão do processo
+- _Tempo de espera_: soma dos períodos gastos aguardando na fila de prontos
+- _Tempo de resposta_: tempo até a primeira resposta ser produzida
+
+#+latex: \vfill
+
+- Turnaround = espera na fila de prontos + execução na CPU + execução de E/S
+- Tempo de espera e turnaround são afetados pela ordem de execução dos processos
+- Em geral: maximizar utilização e throughput; minimizar os demais
+
+* 6.3 Algoritmos de Escalonamento
+
+O escalonamento da CPU decide qual processo da fila de prontos recebe a CPU
+
+#+latex: \vfill
+
+Algoritmos abordados neste curso
+
+- 6.3.1 Primeiro a Chegar, Primeiro a Ser Atendido (FCFS)
+- 6.3.2 Menor Job Primeiro (SJF)
+- 6.3.3 Escalonamento por Prioridades
+- 6.3.4 Round-Robin
+- 6.3.5 Filas Multiníveis
+- 6.3.6 Filas Multiníveis com Retroalimentação
+
+#+latex: \vfill
+
+- Nesta aula: algoritmos não-preemptivos FCFS e SJF
+
+* FCFS: Primeiro a Chegar, Primeiro a Ser Atendido
+
+Algoritmo mais simples: processos recebem a CPU na ordem em que a solicitam
+
+- Implementado com uma fila FIFO de PCBs
+- Quando a CPU fica livre, o processo na cabeça da fila é executado
+- Processo bloqueado vai para o fim da fila ao desbloquear
+
+#+latex: \vfill
+
+Exemplo: processos P1, P2, P3 com surtos de 24, 3, 3 ms (chegam em t=0)
+
+- Ordem P1, P2, P3: espera de 0, 24, 27 ms \to média = 17 ms
+- Ordem P2, P3, P1: espera de 6, 0, 3 ms \to média = 3 ms
+
+#+latex: \vfill
+
+- Tempo médio de espera pode variar muito conforme a ordem de chegada
+- Vantagem: simples de compreender e implementar
+
+* FCFS: Efeito Comboio
+
+Um processo limitado pela CPU monopoliza a CPU enquanto processos de E/S esperam
+
+- Processo limitado pela CPU executa por 1 s e lê um bloco de disco
+- Enquanto isso, todos os processos de E/S ficam aguardando na fila de prontos
+- Quando o limitado pela CPU bloqueia, os de E/S executam em rápida sucessão
+- Dispositivos de E/S ficam ociosos enquanto o limitado pela CPU executa
+
+#+latex: \vfill
+
+- Resultado: 1 bloco de disco por segundo para cada processo de E/S \to 1.000 s para concluir
+- Com preempção a cada 10 ms: os mesmos processos concluiriam em ~10 s
+- Algoritmo FCFS é particularmente inadequado para sistemas de tempo compartilhado
+
+* SJF: Menor Job Primeiro
+
+Associa a cada processo a duração estimada do próximo surto de CPU
+
+- CPU alocada ao processo com o próximo surto de CPU mais curto
+- Em caso de empate, usa FCFS para desempatar
+
+#+latex: \vfill
+
+Exemplo: P1=6, P2=8, P3=7, P4=3 ms (chegam em t=0)
+
+- Ordem SJF: P4, P1, P3, P2
+- Espera: P1=3, P2=16, P3=9, P4=0 ms \to média = 7 ms
+- Comparação com FCFS: média = 10,25 ms
+
+#+latex: \vfill
+
+- SJF é comprovadamente ótimo para tempo médio de espera mínimo
+- Executar um processo curto antes de um longo reduz mais o tempo de espera do curto
+- do que aumenta o tempo de espera do longo
+
+* SJF: Limitações
+
+O algoritmo SJF é ótimo apenas quando todos os processos estão disponíveis simultaneamente
+
+- Contraexemplo (Tanenbaum): A=2, B=4, C=1, D=1, E=1 ms; chegadas: A,B em t=0; C,D,E em t=3
+- Ordem SJF: A, B, C, D, E \to tempo de espera médio = 4,6 ms
+- Ordem alternativa: B, C, D, E, A \to tempo de espera médio = 4,4 ms
+
+#+latex: \vfill
+
+Grande dificuldade: como conhecer a duração do próximo surto de CPU?
+
+- Em sistemas batch de longo prazo: limite de tempo informado pelo usuário
+- Em escalonamento de curto prazo: não há como saber o próximo surto com exatidão
+- Solução: _estimar_ o próximo surto com base nos surtos anteriores
+
+* SJF: Estimativa do Próximo Surto de CPU
+
+O próximo surto é previsto como média exponencial dos surtos anteriores
+
+- Seja $t_n$ a duração do $n$-ésimo surto de CPU medido
+- Seja $\tau_{n+1}$ o valor previsto para o próximo surto
+- Para $\alpha$, com $0 \leq \alpha \leq 1$:
+
+#+latex: \vfill
+
+$$\tau_{n+1} = \alpha\, t_n + (1-\alpha)\, \tau_n$$
+
+#+latex: \vfill
+
+- $\alpha = 0$: $\tau_{n+1} = \tau_n$ — história recente ignorada, apenas histórico passado
+- $\alpha = 1$: $\tau_{n+1} = t_n$ — apenas o surto mais recente importa
+- $\alpha = 1/2$ (mais comum): histórico recente e passado têm peso igual
+- $\tau_0$ inicial pode ser definido como constante ou média geral do sistema
+
+* Referências
+
+- Silberschatz, Galvin & Gagne — _Fundamentos de Sistemas Operacionais_, 9ª ed.
+  - Cap. 6, Seções 6.1, 6.2, 6.3
+- Tanenbaum & Bos — _Sistemas Operacionais Modernos_
+  - Cap. 2, Seções 2.4.1, 2.4.2
