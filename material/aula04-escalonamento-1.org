@@ -16,6 +16,66 @@
 #+OPTIONS: H:1 num:t toc:nil \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
 #+LATEX_HEADER: \input{org-babel.tex}
 
+* Código                                                           :noexport:
+** Tema
+#+begin_src R :results output :session *R* :exports both :noweb yes :colnames yes
+options(crayon.enabled=FALSE)
+suppressMessages(library(tidyverse))
+list(
+  scale_fill_brewer(palette = "Set1"),  
+  theme_bw(base_size = 14),
+  theme(
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),
+    legend.spacing = unit(1, "mm"),
+    panel.grid = element_blank(),
+    legend.position = "none",
+    legend.justification = "left",
+    legend.box.spacing = unit(0, "pt"),
+    legend.box.margin = margin(0, 0, 0, 0),
+    axis.text.y  = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.y = element_blank(),
+    axis.line.y  = element_blank(),
+    axis.title.x = element_blank(),    
+  ),
+  scale_x_continuous(expand = c(0, 0)),
+  scale_y_continuous(expand = c(0, 0))  
+) -> my.theme
+#+end_src
+
+#+RESULTS:
+** Função
+
+#+begin_src R :results output :session *R* :exports both :noweb yes :colnames yes
+plot_schedule <- function(df, base_size = 14) {
+  df |>
+    mutate(name2 = paste0(name, "=", tempo)) |>
+    mutate(
+      inicio = cumsum(tempo) - tempo,
+      fim = inicio + tempo,
+      center = inicio + (fim - inicio)/2
+    ) -> df
+  df |>
+    ggplot(aes(
+      fill = name,
+      label = name2,
+      x = center, y = 0.5,
+      xmin = inicio, xmax = fim,
+      ymin = 0, ymax = 1
+    )) +
+    geom_rect() +
+    geom_text(size = base_size/2) +
+    my.theme +
+    scale_x_continuous(
+      breaks = df$inicio,
+      labels = df$inicio,
+      expand = c(0,0)
+    )
+}
+#+end_src
+
+#+RESULTS:
+
 * Estrutura da aula
 
 - Revisão da aula anterior (IPC \to Pipes)
@@ -298,30 +358,56 @@ Algoritmo mais simples: processos recebem a CPU na ordem em que a solicitam
 
 #+latex: \vfill
 
-Exemplo: processos P1, P2, P3 com surtos de 24, 3, 3 ms (chegam em t=0)
+Exemplos: processos P1, P2, P3 com surtos de 24, 3, 3 ms (chegam em t=0)
 
 - Ordem P1, P2, P3: espera de 0, 24, 27 ms \to média = 17 ms
-- Ordem P2, P3, P1: espera de 6, 0, 3 ms \to média = 3 ms
+#+begin_src R :results file output graphics :file (org-babel-temp-file "figure" ".png") :exports results :width 600 :height 40 :session *R* :center nil  
+tribble(~name, ~tempo, ~chegada,
+        "P1", 24, 0,
+        "P2", 3, 0,
+        "P3", 3, 0) |>
+  plot_schedule()
+#+end_src
+
+#+RESULTS:
+[[file:/tmp/babel-XEz44B/figureo5bT5j.png]]
+
+- Ordem P2, P3, P1: espera de 0, 3, 6 ms \to média = 3 ms
+#+begin_src R :results file output graphics :file (org-babel-temp-file "figure" ".png") :exports results :width 600 :height 40 :session *R* :center nil  
+tribble(~name, ~tempo, ~chegada,
+        "P2", 3, 0,
+        "P3", 3, 0,
+        "P1", 24, 0) |>
+  plot_schedule()
+#+end_src
+
+#+RESULTS:
+[[file:/tmp/babel-XEz44B/figureZzOeVs.png]]
+
 
 #+latex: \vfill
 
-- Tempo médio de espera pode variar muito conforme a ordem de chegada
+** Tempo médio de espera varia muito conforme a ordem de chegada
 - Vantagem: simples de compreender e implementar
 
 * FCFS: Efeito Comboio
 
-Um processo limitado pela CPU monopoliza a CPU enquanto processos de E/S esperam
+** Monopólio do uso da CPU por um processo
 
-- Processo limitado pela CPU executa por 1 s e lê um bloco de disco
-- Enquanto isso, todos os processos de E/S ficam aguardando na fila de prontos
-- Quando o limitado pela CPU bloqueia, os de E/S executam em rápida sucessão
-- Dispositivos de E/S ficam ociosos enquanto o limitado pela CPU executa
+Um processo usa a CPU por 1s ...
+- Enquanto ele usa a CPU
+  - Todos os processos de E/S aguardam na fila de prontos
+- ... e daí lê um bloco de disco
+  - Os outros processos de E/S executam em rápida sucessão
+
+** Problema: Ociosidade dos dispositivos de E/S
 
 #+latex: \vfill
 
-- Resultado: 1 bloco de disco por segundo para cada processo de E/S \to 1.000 s para concluir
-- Com preempção a cada 10 ms: os mesmos processos concluiriam em ~10 s
-- Algoritmo FCFS é particularmente inadequado para sistemas de tempo compartilhado
+- Algoritmo inadequado para sistemas de tempo compartilhado
+  - Processos de E/S se agrupam em ``comboio'' conforme avançam
+- A solução seria preemptar o processo que monopoliza a CPU
+  - Mas daí estamos vendo algoritmos com preempção (próxima aula)
 
 * SJF: Menor Job Primeiro
 
@@ -330,43 +416,108 @@ Associa a cada processo a duração estimada do próximo surto de CPU
 - CPU alocada ao processo com o próximo surto de CPU mais curto
 - Em caso de empate, usa FCFS para desempatar
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
 Exemplo: P1=6, P2=8, P3=7, P4=3 ms (chegam em t=0)
 
 - Ordem SJF: P4, P1, P3, P2
-- Espera: P1=3, P2=16, P3=9, P4=0 ms \to média = 7 ms
-- Comparação com FCFS: média = 10,25 ms
+  - Espera: P1=3, P2=16, P3=9, P4=0 ms \to média = 7 ms
 
-#+latex: \vfill
+#+begin_src R :results file output graphics :file (org-babel-temp-file "figure" ".png") :exports results :width 600 :height 40 :session *R* :center nil
+tribble(~name, ~tempo, ~chegada,
+        "P1", 6, 0,
+        "P2", 8, 0,
+        "P3", 7, 0,
+        "P4", 3, 0) |>
+  arrange(tempo) |> # SJF
+  plot_schedule()
+#+end_src
 
-- SJF é comprovadamente ótimo para tempo médio de espera mínimo
-- Executar um processo curto antes de um longo reduz mais o tempo de espera do curto
-- do que aumenta o tempo de espera do longo
+#+RESULTS:
+[[file:/tmp/babel-XEz44B/figurevZNAwC.png]]
+
+#+latex: \pause
+
+- Uma ordem com FCFS: P1, P2, P3, P4 (para comparação)
+  - Espera: P1=0, P2=6, P3=14, P4=21 \to média = 10,25 ms
+
+#+begin_src R :results file output graphics :file (org-babel-temp-file "figure" ".png") :exports results :width 600 :height 40 :session *R* :center nil
+tribble(~name, ~tempo, ~chegada,
+        "P1", 6, 0,
+        "P2", 8, 0,
+        "P3", 7, 0,
+        "P4", 3, 0) |>
+  plot_schedule()
+#+end_src
+
+#+RESULTS:
+[[file:/tmp/babel-XEz44B/figure75mX7j.png]]
+
+#+latex: \vfill\pause
+
+** SJF é ótimo para tempo médio de espera mínimo
+- Executar sempre um processo curto antes de um longo
+
+  #+begin_center
+  Reduz mais o tempo de espera do curto
+  
+  do que aumenta o tempo de espera do longo
+  #+end_center  
 
 * SJF: Limitações
 
-O algoritmo SJF é ótimo apenas quando todos os processos estão disponíveis simultaneamente
+É ótimo apenas quando todos os processos estão disponíveis simultaneamente
 
-- Contraexemplo (Tanenbaum): A=2, B=4, C=1, D=1, E=1 ms; chegadas: A,B em t=0; C,D,E em t=3
+- Vejamos este contraexemplo
+  - Tempos: A=2, B=4, C=1, D=1, E=1 ms
+  - Chegadas: A,B em t=0; C,D,E em t=3
 - Ordem SJF: A, B, C, D, E \to tempo de espera médio = 4,6 ms
+#+begin_src R :results file output graphics :file (org-babel-temp-file "figure" ".png") :exports results :width 600 :height 40 :session *R* :center nil
+tribble(~name, ~tempo, ~chegada,
+        "A", 2, 0,
+        "B", 4, 0,
+        "C", 1, 3,
+        "D", 1, 3,
+        "E", 1, 3) |>
+  plot_schedule()
+#+end_src  
+
+#+RESULTS:
+[[file:/tmp/babel-XEz44B/figureqHEg91.png]]
+
+#+latex: \pause
+
 - Ordem alternativa: B, C, D, E, A \to tempo de espera médio = 4,4 ms
+#+begin_src R :results file output graphics :file (org-babel-temp-file "figure" ".png") :exports results :width 600 :height 40 :session *R* :center nil
+tribble(~name, ~tempo, ~chegada,
+        "B", 4, 0,
+        "C", 1, 3,
+        "D", 1, 3,
+        "E", 1, 3,
+        "A", 2, 0) |>
+  plot_schedule()
+#+end_src
 
-#+latex: \vfill
+#+RESULTS:
+[[file:/tmp/babel-XEz44B/figurevVPGDq.png]]
 
-Grande dificuldade: como conhecer a duração do próximo surto de CPU?
+#+latex: \vfill\pause
 
-- Em sistemas batch de longo prazo: limite de tempo informado pelo usuário
-- Em escalonamento de curto prazo: não há como saber o próximo surto com exatidão
+** Grande dificuldade: como saber a duração do próximo uso de CPU?
+
+- Em sistemas de lote: limite de tempo informado pelo usuário OK!
+- Em escalonamento de curto prazo
+  - Não há como saber o próximo surto com exatidão
 - Solução: _estimar_ o próximo surto com base nos surtos anteriores
 
-* SJF: Estimativa do Próximo Surto de CPU
+* SJF: Estimativa do Próximo Uso de CPU
 
 O próximo surto é previsto como média exponencial dos surtos anteriores
 
-- Seja $t_n$ a duração do $n$-ésimo surto de CPU medido
+- Seja $t_n$ a duração do n-ésimo uso de CPU medido
+- Seja $\tau_{n}$ o valor da história passada
 - Seja $\tau_{n+1}$ o valor previsto para o próximo surto
-- Para $\alpha$, com $0 \leq \alpha \leq 1$:
+- Seja $\alpha$ o peso relativo da história passada e presente, com $0 \leq \alpha \leq 1$:
 
 #+latex: \vfill
 
@@ -378,6 +529,72 @@ $$\tau_{n+1} = \alpha\, t_n + (1-\alpha)\, \tau_n$$
 - $\alpha = 1$: $\tau_{n+1} = t_n$ — apenas o surto mais recente importa
 - $\alpha = 1/2$ (mais comum): histórico recente e passado têm peso igual
 - $\tau_0$ inicial pode ser definido como constante ou média geral do sistema
+
+** Left                                                              :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.5
+:END:
+
+#+begin_src R :results file output graphics :file (org-babel-temp-file "figure" ".png") :exports results :width 320 :height 200 :session *R*
+tau0 = 10
+alpha = 0.5
+tibble(tn = c(6, 4, 6, 4, 13, 13, 13)) |>
+  mutate(ordem = row_number() - 1) |>
+  mutate(
+    tau = purrr::accumulate(
+      tn,
+      \(tau_prev, t) alpha * t + (1 - alpha) * tau_prev,
+      .init = tau0
+    )[-1]
+  ) -> df
+
+# gerar spline
+spl <- with(df, spline(ordem, tau, n = 200)) |> as_tibble()
+
+ggplot(df, aes(x = ordem)) +
+  geom_col(aes(y = tn), width = 0.8, alpha = 0.6) +
+  geom_line(data = spl, aes(x = x, y = y), linewidth = 1.2) +
+  geom_point(aes(y = tau), size = 2) +
+  labs(x = "ordem", y = "valor") +
+#  my.theme +
+  scale_x_continuous(
+    breaks = seq(0, max(df$ordem), by = 1),
+    expand = c(0,0)
+  ) +
+  scale_y_continuous(expand=c(0,0)) +
+#  my.theme +
+  labs(y = "Uso de CPU", x = "Tempo") +
+  theme_bw(base_size=14) +
+  theme(
+    axis.text.y  = element_text(),
+    axis.ticks.y = element_line(),
+    axis.title.y = element_text(),
+    axis.line.y  = element_line(),
+    axis.title.x = element_text())
+#+end_src
+
+#+RESULTS:
+[[file:/tmp/babel-XEz44B/figureb2SYBI.png]]
+
+** Right
+:PROPERTIES:
+:BEAMER_col: 0.5
+:END:
+
+#+begin_src R :results table :session *R* :exports results :noweb yes :colnames yes
+df
+#+end_src
+
+#+RESULTS:
+| tn | ordem | tau |
+|----+-------+-----|
+|  6 |     0 |   8 |
+|  4 |     1 |   6 |
+|  6 |     2 |   6 |
+|  4 |     3 |   5 |
+| 13 |     4 |   9 |
+| 13 |     5 |  11 |
+| 13 |     6 |  12 |
 
 * Referências
 
