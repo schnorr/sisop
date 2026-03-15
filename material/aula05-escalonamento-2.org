@@ -1,0 +1,860 @@
+# -*- coding: utf-8 -*-
+# -*- mode: org -*-
+#+startup: beamer overview indent
+#+LANGUAGE: pt-br
+#+TAGS: noexport(n)
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+EXPORT_SELECT_TAGS: export
+
+#+Title: Sistemas Operacionais
+#+Subtitle: *Escalonamento de CPU II*
+#+Author: Prof. Lucas Mello Schnorr (UFRGS)
+#+Date: \copyleft
+
+#+LaTeX_CLASS: beamer
+#+LaTeX_CLASS_OPTIONS: [xcolor=dvipsnames,10pt]
+#+OPTIONS: H:1 num:t toc:nil \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
+#+LATEX_HEADER: \input{org-babel.tex}
+
+* Código                                                           :noexport:
+** Tema
+#+begin_src R :results output :session *R* :exports both :noweb yes :colnames yes
+options(crayon.enabled=FALSE)
+suppressMessages(library(tidyverse))
+list(
+  scale_fill_brewer(palette = "Set1"),  
+  theme_bw(base_size = 14),
+  theme(
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),
+    legend.spacing = unit(1, "mm"),
+    panel.grid = element_blank(),
+    legend.position = "none",
+    legend.justification = "left",
+    legend.box.spacing = unit(0, "pt"),
+    legend.box.margin = margin(0, 0, 0, 0),
+    axis.text.y  = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.y = element_blank(),
+    axis.line.y  = element_blank(),
+    axis.title.x = element_blank(),    
+  ),
+  scale_x_continuous(expand = c(0, 0)),
+  scale_y_continuous(expand = c(0, 0))  
+) -> my.theme
+#+end_src
+
+#+RESULTS:
+** Função
+
+#+begin_src R :results output :session *R* :exports both :noweb yes :colnames yes
+plot_schedule <- function(df, base_size = 14) {
+  df |>
+    mutate(name2 = name) |>#paste0(name, "=", tempo)) |>
+    mutate(
+      inicio = cumsum(tempo) - tempo,
+      fim = inicio + tempo,
+      center = inicio + (fim - inicio)/2
+    ) -> df
+  df |>
+    ggplot(aes(
+      fill = name,
+      label = name2,
+      x = center, y = 0.5,
+      xmin = inicio, xmax = fim,
+      ymin = 0, ymax = 1
+    )) +
+    geom_rect() +
+    geom_text(size = base_size/2) +
+    my.theme +
+    scale_x_continuous(
+      breaks = df$inicio,
+      labels = df$inicio,
+      expand = c(0,0)
+    )
+}
+#+end_src
+
+#+RESULTS:
+
+* Estrutura da aula
+
+- Revisão da aula anterior
+  - Escalonamento: conceitos, critérios, FCFS, SJF
+  - Ainda sobre /page caching/ em RAM
+- Algoritmos preemptivos
+  - SRTF: Shortest Remaining Time First (versão preemptiva do SJF)
+  - Round Robin
+  - Prioridades
+  - Filas Multinível e Filas Multinível com Retroalimentação
+- Escalonamento em sistemas multiprocessador
+  - Afinidade com o processador, balanceamento de carga, multicore
+- Exemplos de SO reais: Linux CFS
+- Escalonamento de Tempo Real (visão geral)
+
+* Revisão: Ainda sobre /page caching/ em RAM
+
+O SO mantém páginas de arquivos lidos em uma área de cache na RAM
+
+- Objetivo: evitar leituras repetidas ao disco (tipicamente mais lento)
+- Páginas sujas (modificadas) são gravadas em disco de forma assíncrona
+- Quando falta memória, o SO libera páginas de cache
+
+#+latex: \pause
+
+Na aula de IPC nós vimos o método da ``Memória Compartilhada''
+- Permite que páginas de memória sejam mantidas em RAM
+- Deixar explícito que =/dev/shm/= apenas mostra páginas em RAM
+  - Via FS, mas são dados tipicamente não registrados em disco
+
+#+latex: \vfill\pause
+
+Interação com o escalonador
+
+- Processo que acessa dados já em cache recebe resposta mais rápida
+- Processos limitados por E/S se beneficiam muito do cache
+- Escalonador permite que E/S e CPU sejam utilizadas simultaneamente
+
+
+** Cache de disco em RAM                                          :noexport:
+
+#+begin_src C :tangle demo_pagecache.c
+/*
+ * demo_pagecache.c
+ *
+ * Demonstra que o Linux mantém arquivos em memória através do Page Cache.
+ *
+ * O que este programa faz:
+ *   1. Cria um arquivo binário de 1 GB com padrão verificável
+ *   2. Lê o arquivo e mede o tempo (acesso ao disco — lento)
+ *   3. Lê o arquivo novamente sem descartar o cache
+ *      (acesso ao Page Cache — muito mais rápido)
+ *   4. Usa mincore(2) para provar que as páginas estão em RAM
+ *   5. Descarta o cache via /proc/sys/vm/drop_caches (requer root)
+ *   6. Lê o arquivo novamente (volta a ser lento — cache frio)
+ *
+ * Compilação:
+ *   gcc -O2 -o demo_pagecache demo_pagecache.c
+ *
+ * Execução (recomendado como root para descartar o cache):
+ *   sudo ./demo_pagecache
+ *
+ * Sem root, os passos 5 e 6 são ignorados (ainda assim demonstrativos).
+ */
+
+#define _GNU_SOURCE
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <time.h>
+#include <errno.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+/* ------------------------------------------------------------------ */
+/* Constantes                                                           */
+/* ------------------------------------------------------------------ */
+#define FILE_PATH       "/tmp/pagecache_demo_1gb.bin"
+#define FILE_SIZE_GB    1ULL
+#define FILE_SIZE       (FILE_SIZE_GB * 1024ULL * 1024ULL * 1024ULL)  /* 1 GiB */
+#define CHUNK_SIZE      (4ULL * 1024ULL * 1024ULL)                    /* 4 MiB por escrita */
+#define PAGE_SIZE       4096ULL
+
+/* Padrão de 64 bits para verificação de integridade */
+#define MAGIC_PATTERN   UINT64_C(0xDEADBEEFCAFEBABE)
+
+/* ------------------------------------------------------------------ */
+/* Utilitários                                                          */
+/* ------------------------------------------------------------------ */
+static double now_sec(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+}
+
+static void print_header(const char *msg)
+{
+    printf("\n");
+    printf("╔══════════════════════════════════════════════════════════╗\n");
+    printf("║  %-56s  ║\n", msg);
+    printf("╚══════════════════════════════════════════════════════════╝\n");
+}
+
+static void print_step(int n, const char *desc)
+{
+    printf("\n[Passo %d] %s\n", n, desc);
+    printf("──────────────────────────────────────────────────────────\n");
+}
+
+/* Formata bytes em GiB/MiB/KiB */
+static const char *fmt_size(uint64_t bytes, char *buf, size_t bufsz)
+{
+    if (bytes >= 1024ULL * 1024ULL * 1024ULL)
+        snprintf(buf, bufsz, "%.2f GiB", (double)bytes / (1024.0 * 1024.0 * 1024.0));
+    else if (bytes >= 1024ULL * 1024ULL)
+        snprintf(buf, bufsz, "%.2f MiB", (double)bytes / (1024.0 * 1024.0));
+    else
+        snprintf(buf, bufsz, "%.2f KiB", (double)bytes / 1024.0);
+    return buf;
+}
+
+/* ------------------------------------------------------------------ */
+/* Criação do arquivo                                                   */
+/* ------------------------------------------------------------------ */
+static int create_file(void)
+{
+    int fd;
+    unsigned char *buf;
+    uint64_t written = 0;
+    char szstr[32];
+
+    printf("  Caminho : %s\n", FILE_PATH);
+    printf("  Tamanho : %s\n", fmt_size(FILE_SIZE, szstr, sizeof szstr));
+
+    fd = open(FILE_PATH, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) {
+        perror("  ERRO: open");
+        return -1;
+    }
+
+    buf = malloc(CHUNK_SIZE);
+    if (!buf) {
+        perror("  ERRO: malloc");
+        close(fd);
+        return -1;
+    }
+
+    /* Preenche o buffer com padrão reconhecível */
+    for (uint64_t i = 0; i + sizeof(uint64_t) <= CHUNK_SIZE; i += sizeof(uint64_t))
+        memcpy(buf + i, &(uint64_t){MAGIC_PATTERN ^ i}, sizeof(uint64_t));
+
+    double t0 = now_sec();
+    while (written < FILE_SIZE) {
+        uint64_t to_write = CHUNK_SIZE;
+        if (written + to_write > FILE_SIZE)
+            to_write = FILE_SIZE - written;
+
+        ssize_t ret = write(fd, buf, (size_t)to_write);
+        if (ret <= 0) {
+            perror("  ERRO: write");
+            free(buf);
+            close(fd);
+            return -1;
+        }
+        written += (uint64_t)ret;
+
+        /* Barra de progresso simples */
+        if (written % (64 * 1024 * 1024) == 0 || written == FILE_SIZE) {
+            int pct = (int)((written * 100) / FILE_SIZE);
+            printf("\r  Escrevendo... %3d%%  (%s de %s)",
+                   pct,
+                   fmt_size(written, szstr, sizeof szstr),
+                   fmt_size(FILE_SIZE, (char[32]){}, 32));
+            fflush(stdout);
+        }
+    }
+
+    /* Força sync para garantir dados no disco antes da leitura */
+    fsync(fd);
+    close(fd);
+    free(buf);
+
+    double elapsed = now_sec() - t0;
+    printf("\n  Tempo de escrita : %.2f s  (throughput: %.1f MiB/s)\n",
+           elapsed, (double)(FILE_SIZE / 1024 / 1024) / elapsed);
+    return 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Leitura e medição de tempo                                           */
+/* ------------------------------------------------------------------ */
+static int read_file(const char *label, uint64_t *bytes_read_out)
+{
+    int fd;
+    unsigned char *buf;
+    uint64_t total = 0;
+    char szstr[32];
+
+    fd = open(FILE_PATH, O_RDONLY);
+    if (fd < 0) {
+        perror("  ERRO: open");
+        return -1;
+    }
+
+    /* O_DIRECT evitaria o cache, mas queremos demonstrar o cache — usamos normal */
+
+    buf = malloc(CHUNK_SIZE);
+    if (!buf) {
+        perror("  ERRO: malloc");
+        close(fd);
+        return -1;
+    }
+
+    double t0 = now_sec();
+    ssize_t n;
+    while ((n = read(fd, buf, (size_t)CHUNK_SIZE)) > 0)
+        total += (uint64_t)n;
+
+    double elapsed = now_sec() - t0;
+
+    if (n < 0)
+        perror("  AVISO: read");
+
+    close(fd);
+    free(buf);
+
+    if (bytes_read_out)
+        *bytes_read_out = total;
+
+    printf("  %-25s  %s lidos em %.3f s  →  %.1f MiB/s\n",
+           label,
+           fmt_size(total, szstr, sizeof szstr),
+           elapsed,
+           (double)(total / 1024 / 1024) / elapsed);
+
+    return 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Verifica quantas páginas do arquivo estão em RAM via mincore(2)     */
+/* ------------------------------------------------------------------ */
+static void check_pages_in_ram(void)
+{
+    int fd;
+    void *map;
+    unsigned char *vec;
+    uint64_t pages_total, pages_in_ram;
+
+    fd = open(FILE_PATH, O_RDONLY);
+    if (fd < 0) { perror("  ERRO: open (mincore)"); return; }
+
+    /* mmap sem MAP_POPULATE — não força carregamento */
+    map = mmap(NULL, (size_t)FILE_SIZE, PROT_READ, MAP_PRIVATE, fd, 0);
+    if (map == MAP_FAILED) {
+        perror("  ERRO: mmap");
+        close(fd);
+        return;
+    }
+
+    pages_total = (FILE_SIZE + PAGE_SIZE - 1) / PAGE_SIZE;
+    vec = calloc(pages_total, 1);
+    if (!vec) {
+        perror("  ERRO: calloc (vec)");
+        munmap(map, (size_t)FILE_SIZE);
+        close(fd);
+        return;
+    }
+
+    if (mincore(map, (size_t)FILE_SIZE, vec) != 0) {
+        perror("  ERRO: mincore");
+        free(vec);
+        munmap(map, (size_t)FILE_SIZE);
+        close(fd);
+        return;
+    }
+
+    pages_in_ram = 0;
+    for (uint64_t i = 0; i < pages_total; i++)
+        if (vec[i] & 1)   /* bit 0 = página presente na RAM */
+            pages_in_ram++;
+
+    double pct = (double)pages_in_ram * 100.0 / (double)pages_total;
+    char szstr[32];
+
+    printf("  Pages totais    : %llu  (%s)\n",
+           (unsigned long long)pages_total,
+           fmt_size(pages_total * PAGE_SIZE, szstr, sizeof szstr));
+    printf("  Pages em RAM    : %llu  (%.1f%%)\n",
+           (unsigned long long)pages_in_ram, pct);
+    printf("  Conclusão       : %s\n",
+           pct > 90.0 ? "✓ Arquivo praticamente inteiro no Page Cache!" :
+           pct > 50.0 ? "~ Arquivo parcialmente no Page Cache" :
+                        "✗ Arquivo pouco presente no Page Cache");
+
+    free(vec);
+    munmap(map, (size_t)FILE_SIZE);
+    close(fd);
+}
+
+/* ------------------------------------------------------------------ */
+/* Descarta o Page Cache (requer root)                                 */
+/* ------------------------------------------------------------------ */
+static int drop_caches(void)
+{
+    int fd = open("/proc/sys/vm/drop_caches", O_WRONLY);
+    if (fd < 0) {
+        printf("  Sem permissão para descartar o cache "
+               "(execute como root para este passo).\n");
+        return -1;
+    }
+    if (write(fd, "3\n", 2) != 2) {
+        perror("  ERRO: write drop_caches");
+        close(fd);
+        return -1;
+    }
+    close(fd);
+    sync();
+    printf("  Cache descartado com sucesso (echo 3 > /proc/sys/vm/drop_caches).\n");
+    return 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* main                                                                 */
+/* ------------------------------------------------------------------ */
+int main(void)
+{
+    uint64_t bytes1, bytes2, bytes3;
+
+    print_header("Demo: Page Cache do Linux — arquivo binário de 1 GiB");
+
+    printf("\nConceito\n");
+    printf("────────\n");
+    printf("O Linux mantém em RAM as páginas de arquivos recentemente acessados\n");
+    printf("no \"Page Cache\". Na 2ª leitura, os dados vêm direto da memória —\n");
+    printf("sem tocar o disco — resultando em throughput muito maior.\n");
+    printf("A chamada mincore(2) revela quais páginas estão em RAM.\n");
+
+    /* ── Passo 1: criar arquivo ─────────────────────────────────── */
+    print_step(1, "Criar arquivo binário de 1 GiB");
+
+    struct stat st;
+    if (stat(FILE_PATH, &st) == 0 && (uint64_t)st.st_size == FILE_SIZE) {
+        printf("  Arquivo já existe com tamanho correto. Pulando criação.\n");
+        printf("  (Remova %s para recriar.)\n", FILE_PATH);
+    } else {
+        if (create_file() != 0)
+            return 1;
+    }
+
+    /* ── Passo 2: descartar cache antes da 1ª leitura ───────────── */
+    print_step(2, "Descartar Page Cache antes da 1ª leitura");
+    drop_caches();  /* não-fatal se falhar */
+
+    /* ── Passo 3: 1ª leitura (cache frio → disco) ───────────────── */
+    print_step(3, "1ª leitura — cache frio (do disco)");
+    if (read_file("Leitura #1 (disco):", &bytes1) != 0)
+        return 1;
+
+    /* ── Passo 4: verificar pages em RAM após 1ª leitura ────────── */
+    print_step(4, "Verificar pages em RAM via mincore(2) — após 1ª leitura");
+    check_pages_in_ram();
+
+    /* ── Passo 5: 2ª leitura (cache quente → RAM) ───────────────── */
+    print_step(5, "2ª leitura — cache quente (da RAM / Page Cache)");
+    if (read_file("Leitura #2 (cache):", &bytes2) != 0)
+        return 1;
+
+    /* ── Passo 6: verificar pages em RAM após 2ª leitura ────────── */
+    print_step(6, "Verificar pages em RAM via mincore(2) — após 2ª leitura");
+    check_pages_in_ram();
+
+    /* ── Passo 7: descartar cache e reler ───────────────────────── */
+    print_step(7, "Descartar cache e fazer 3ª leitura (volta ao disco)");
+    if (drop_caches() == 0) {
+        printf("\n");
+        read_file("Leitura #3 (disco):", &bytes3);
+    } else {
+        printf("  Pulando 3ª leitura (sem permissão de root).\n");
+        bytes3 = 0;
+    }
+
+    /* ── Resumo ─────────────────────────────────────────────────── */
+    print_header("Resumo dos resultados");
+
+    printf("\n  O speedup entre leitura com cache frio vs. cache quente\n");
+    printf("  demonstra empiricamente que o SO manteve o arquivo em\n");
+    printf("  memória (Page Cache) entre as duas leituras.\n\n");
+
+    printf("  ┌─────────────────────────────────────────────────────┐\n");
+    printf("  │  Leitura #1 (disco/cache frio)  →  base             │\n");
+    printf("  │  Leitura #2 (RAM/cache quente)  →  MUITO mais rápida│\n");
+    if (bytes3 > 0)
+    printf("  │  Leitura #3 (disco após drop)   →  lenta novamente  │\n");
+    printf("  └─────────────────────────────────────────────────────┘\n\n");
+
+    printf("  Referências:\n");
+    printf("    man 2 mincore     — verifica residência de páginas em RAM\n");
+    printf("    man 5 proc        — /proc/sys/vm/drop_caches\n");
+    printf("    /proc/meminfo     — campos Cached e Buffers\n\n");
+
+    /* Limpeza opcional */
+    printf("  Arquivo de teste: %s\n", FILE_PATH);
+    printf("  Execute 'rm %s' para liberar o espaço.\n\n", FILE_PATH);
+
+    (void)bytes1; (void)bytes2;
+    return 0;
+}
+
+#+end_src
+
+* Revisão: escalonamento, visão geral da aula passada
+
+Escalonamento da CPU decide qual processo da fila de prontos recebe a CPU
+
+- Critérios: utilização, vazão, tempo de turnaround, de espera e de resposta
+- Sem preempção: processo vai até bloquear ou terminar voluntariamente
+- Com preempção: processo pode ser interrompido por temporizador ou E/S
+
+#+latex: \vfill
+
+Algoritmos não-preemptivos vistos na aula passada
+
+- FCFS: simples,  mas tem  comboio
+- SJF: ótimo para tempo médio de espera, mas exige estimar surto
+
+* Introdução ao escalonamento preemptivo
+
+#+attr_latex: :width .5\linewidth
+[[./S_fig3.2.png]]
+
+1. Quando um processo passa do estado de execução para o estado de espera
+   - Fez E/S ou fez =wait= no processo filho
+2. Quando um processo passa do estado de execução para o estado de pronto
+   - Interrupção de tempo
+3. Quando um processo passa do estado de espera para o estado de pronto
+   - Requisição de E/S terminou
+4. Quando um processo termina
+
+#+latex: \vfill
+
+** A _decisão de escalonamento_ é tomada nas quatro situações
+- Escalonamento com preempção
+- Exige hardware especial (temporizador programável)
+
+* SRTF: Shortest Remaining Time First
+
+Versão preemptiva do algoritmo SJF (Shortest Job First)
+
+- Escalonador escolhe o processo com o menor _tempo de execução restante_
+- Processo novo: compara-se seu tempo total contra o restante do atual
+  - Se este novo termina mais rápido, o atual é suspenso
+
+#+latex: \vfill\pause
+
+Exemplo: P1 chega t=0 (8ms), P2 t=1 (4ms), P3 t=2 (9ms), P4 t=3 (5ms)
+
+- t=1: P2 chega (4ms[P2] < 7ms[P1]), P1 é preemptado
+- t=2: P3 chega (3ms[P2] < 7ms[P1] e 9ms[P3]), P2 continua
+- t=3: P4 chega (2ms[P2] < 7ms[P1] e 9ms[P3] e 5ms[P4]), P2 continua
+- t=5: P2 termina (5ms[P4] < 7ms[P1] e 9ms[P3]), P4 começa
+- t=10: P4 termina (7ms[P1] < 9ms[P3]), P1 continua
+- t=17: P1 termina, P3 continua solito
+#+begin_src R :results file output graphics :file (org-babel-temp-file "figure" ".png") :exports results :width 600 :height 40 :session *R* :center nil  
+tribble(~name, ~tempo, ~chegada,
+        "P1", 1, 0,
+        "P2", 4, 1,
+        "P4", 5, 3,
+        "P1", 7, 10,
+        "P3", 9, 17) |>
+  plot_schedule()
+#+end_src
+
+#+RESULTS:
+[[file:/tmp/babel-viNMjy/figureIL555T.png]]
+
+#+latex: \pause
+
+- Tempo de espera médio: (0+9)+0+15+2 = 26/4 = _6.5ms_
+
+#+latex: \vfill\space
+
+- Sem preempção (FCFS): (0+8+12+21) = 41/4 = média de 10.25ms
+  
+#+begin_src R :results file output graphics :file (org-babel-temp-file "figure" ".png") :exports results :width 600 :height 40 :session *R* :center nil  
+tribble(~name, ~tempo, ~chegada,
+        "P1", 8, 0,
+        "P2", 4, 1,
+        "P3", 9, 2,
+        "P4", 5, 3) |>
+  plot_schedule()
+#+end_src
+
+#+RESULTS:
+[[file:/tmp/babel-viNMjy/figureC09Uj9.png]]
+
+#+latex: \pause
+- Mesma dificuldade do SJF: exige conhecimento antecipado do tempo
+
+* Round-Robin: Escalonamento por Chaveamento Circular
+
+Cada processo recebe um intervalo de tempo chamado _quantum_ para executar
+
+- Se ainda em execução ao fim do quantum: preempta, vai para o final
+- Se bloqueou ou terminou antes: preempta
+- Implementado: fila circular FIFO de processos
+
+#+latex: \vfill\pause
+
+Propriedades com n processos e quantum de tamanho q
+
+- Cada processo recebe 1/n de CPU em porções de no máximo q unidades
+- Espera máxima é de (n-1) × q unidades até seu próximo quantum
+
+#+latex: \vfill\pause
+
+Exemplo: P1=24ms, P2=3ms, P3=3ms (quantum=4ms), chegam em t=0
+
+- Sequência: P1(4), P2(3), P3(3), P1(4), P1(4), P1(4), P1(4), P1(4)
+- Tempos de espera: P1=(10-4) = 6ms, P2=4ms, P3=7ms; média = 5,66ms
+#+begin_src R :results file output graphics :file (org-babel-temp-file "figure" ".png") :exports results :width 600 :height 40 :session *R* :center nil  
+tribble(~name, ~tempo, ~chegada,
+        "P1", 4, 0,
+        "P2", 3, 4,
+        "P3", 3, 7,
+        "P1", 4, 10,
+        "P1", 4, 14,
+        "P1", 4, 18,
+        "P1", 4, 22,
+        "P1", 4, 26) |>
+  plot_schedule()
+#+end_src  
+
+#+RESULTS:
+[[file:/tmp/babel-viNMjy/figurePn54FD.png]]
+
+* Reflexão sobre o tamanho do Quantum
+
+O desempenho do RR depende fortemente do tamanho do quantum
+
+- Muito curto: muitas trocas de contexto, alta sobrecarga do SO
+- Muito longo: o RR \to FCFS, respostas lentas p/ interações curtas
+
+** Exemplos extremos
+
+- Quantum = 1ms, troca = 1ms: 50% de CPU gasto em sobrecarga
+- Quantum = 100ms, 50 processos: último processo espera até 5 segundos
+
+#+latex: \vfill\pause
+
+** Recomendações práticas
+
+- Tanenbaum: quantum de 20--50ms é geralmente razoável
+- Silberschatz: quantum de 10--100ms; troca de contexto < \approx10\micro
+- Regra prática: 80% dos surtos de CPU devem ser menores que o quantum
+
+* Escalonamento por Prioridades
+
+A cada processo é atribuída uma _prioridade_
+- CPU vai ao processo executável de maior prioridade
+
+- Processos com prioridades iguais são ordenados por FCFS
+- SJF é um exemplo: prioridade = inverso do próximo surto de CPU estimado
+
+#+latex: \vfill\pause
+
+** Tipos de prioridade
+
+- _Estáticas_: atribuídas na criação do processo e não mudam
+- _Dinâmicas_: ajustadas pelo SO conforme comportamento do processo
+- _Internas_: derivadas de métricas mensuráveis (uso de RAM, CPU/E/S)
+- _Externas_: definidas por critérios fora do SO (importância, custo, política)
+
+#+latex: \vfill\pause
+
+** Problema: _inanição_ (starvation)
+
+- Processos de baixa prioridade podem nunca ser executados
+- Solução: _envelhecimento_ (aging)
+  - Prioridade aumenta gradualmente com o tempo de espera
+
+* Filas Multiníveis
+
+Fila de prontos particionada em múltiplas filas separadas
+
+- Processos são atribuídos _permanentemente_ a uma determinada fila
+  - Cada fila possui seu próprio algoritmo de escalonamento, características
+- Exemplo: fila de foreground usa RR; fila de background usa FCFS
+
+#+latex: \vfill\pause
+
+** Escalonamento entre as filas
+
+- Normalmente implementado como prioridade fixa com preempção
+  - Fila de maior prio., se vazia, permite executar processos de menor prioridade
+  - Várias alternativas possíveis
+    - Divisão de tempo, ex.: foreground recebe 80% da CPU, background 20%
+
+#+latex: \vfill
+
+** Exemplo com cinco filas (em ordem decrescente de prioridade)
+1. Processos do sistema
+2. Processos interativos
+3. Processos de edição interativa
+4. Processos batch
+5. Processos de estudantes
+
+* Filas Multiníveis com Retroalimentação
+
+Permite que processos _migrem entre filas_ conforme seu comportamento
+- Processo usou muita CPU: rebaixado para fila de menor prioridade
+- Processo espera demais: promovido para fila de maior prioridade (aging)
+- Interativos e limitados por E/S: permanecem em filas de alta prio.
+
+#+latex: \vfill\pause
+
+** Exemplo com três filas (0, 1, 2) em ordem decrescente de prioridade
+
+- Fila 0: quantum de 8ms; se não terminar, vai para fila 1
+- Fila 1: quantum de 16ms; se não terminar, vai para fila 2
+- Fila 2: escalonamento FCFS; somente quando filas 0 e 1 estão vazias
+
+#+latex: \vfill\pause
+
+** Parâmetros que definem o escalonador
+
+- Número de filas, algoritmo de cada fila
+- Critérios de promoção e rebaixamento entre filas
+- Fila inicial de entrada do processo
+
+* Escalonamento em Sistemas Multiprocessador (Sec. 6.5)
+
+Com múltiplas CPUs o compartilhamento de carga é possível, mas o escalonamento é mais complexo
+
+- Consideramos sistemas _homogêneos_: qualquer processador pode executar qualquer processo
+- Mesmo em sistemas homogêneos podem existir restrições (ex.: dispositivo de E/S em bus privado)
+
+#+latex: \vfill
+
+Duas abordagens principais
+
+- _Multiprocessamento assimétrico_: um processador mestre toma todas as decisões de escalonamento; os demais executam apenas código de usuário; simples, sem compartilhamento de estruturas
+- _Multiprocessamento simétrico (SMP)_: cada processador faz seu próprio escalonamento; fila de prontos comum ou filas privadas por processador; requer sincronização cuidadosa
+
+#+latex: \vfill
+
+- Praticamente todos os SO modernos suportam SMP: Windows, Linux, Mac OS X
+- Na maioria dos sistemas contemporâneos: cada processador tem fila privada de processos
+
+* Multiprocessador: Afinidade com o Processador (Sec. 6.5.2)
+
+Processo em execução preenche o cache do processador com seus dados recentes
+
+- Migração para outro processador invalida o cache do primeiro e exige reenchimento do segundo
+- Alto custo de invalidação e reenchimento motiva manter o processo no mesmo processador
+
+#+latex: \vfill
+
+Formas de afinidade
+
+- _Afinidade leve_: SO tenta manter o processo no mesmo processador, mas não garante
+- _Afinidade rígida_: processo especifica um subconjunto de processadores permitidos
+- Linux: afinidade leve por padrão + chamada de sistema =sched_setaffinity()= para afinidade rígida
+
+#+latex: \vfill
+
+- Arquitetura NUMA (Non-Uniform Memory Access): CPU acessa sua memória local mais rápido
+- Escalonador e alocador de memória podem cooperar para maximizar localidade de dados
+
+* Multiprocessador: Balanceamento de Carga (Sec. 6.5.3)
+
+SMP requer que a carga de trabalho seja distribuída uniformemente entre os processadores
+
+- Processador ocioso enquanto outro está sobrecarregado desperdiça recursos
+- Balanceamento de carga é especialmente importante quando há filas privadas por processador
+
+#+latex: \vfill
+
+Duas abordagens de balanceamento
+
+- _Migração por impulsão_: tarefa periódica verifica a carga e move processos de processadores sobrecarregados para ociosos
+- _Migração por extração_: processador ocioso extrai uma tarefa de um processador ocupado
+- As duas técnicas são frequentemente implementadas em paralelo (Linux, FreeBSD ULE)
+
+#+latex: \vfill
+
+- Balanceamento de carga neutraliza os benefícios da afinidade com o processador
+- Não há regra absoluta; alguns sistemas só migram quando o desequilíbrio excede um limiar
+
+* Multiprocessador: Processadores Multicore (Sec. 6.5.4)
+
+Múltiplos núcleos processadores inseridos no mesmo chip físico
+
+- Cada núcleo mantém o estado de sua arquitetura e parece um processador físico ao SO
+- Sistemas multicore são mais rápidos e consomem menos energia do que chips separados
+
+#+latex: \vfill
+
+Obstrução da memória (/memory stall/)
+
+- Processador gasta tempo significativo esperando dados da memória (ex.: erro de cache)
+- Pode consumir até 50% do tempo do processador
+
+#+latex: \vfill
+
+Núcleos multithreaded (hardware)
+
+- Dois ou mais threads de hardware por núcleo
+- Quando um thread fica obstruído esperando por memória, o núcleo executa outro thread
+- Exemplo: núcleo dual-core e dual-threaded apresenta quatro processadores lógicos ao SO
+- Escalonador do SO deve considerar dois níveis: threads de hardware e processos de software
+
+* Escalonamento no Linux 1/2: CFS (Sec. 6.7.1)
+
+Histórico do escalonador do Linux
+
+- Antes do kernel 2.5: variante do algoritmo UNIX tradicional; não otimizado para SMP
+- Kernel 2.5: algoritmo O(1) --- tempo constante independente do número de processos; melhor suporte a SMP
+- Kernel 2.6.23: CFS --- Completely Fair Scheduler --- tornou-se o escalonador padrão
+
+#+latex: \vfill
+
+Como o CFS funciona
+
+- Baseado em _classes de escalonamento_, cada uma com prioridade; SO seleciona tarefa da classe de maior prioridade
+- Em vez de quantum fixo, CFS atribui _proporção do tempo de CPU_ a cada tarefa
+- Proporção baseada no _valor refinado_ (nice): de -20 (maior prioridade) a +19 (menor prioridade)
+- Valor refinado padrão: 0
+- CFS usa _latência-alvo_: intervalo em que todas as tarefas executáveis devem rodar pelo menos uma vez
+
+#+latex: \vfill
+
+- Variável =vruntime= por tarefa: tempo de execução virtual com fator de decaimento baseado na prioridade
+- Tarefa com menor =vruntime= é a próxima a executar
+
+* Escalonamento no Linux 2/2: CFS em Ação (Sec. 6.7.1)
+
+Exemplo: tarefa limitada por E/S versus tarefa limitada por CPU (mesmo valor refinado)
+
+- Tarefa limitada por E/S executa por períodos curtos e bloqueia frequentemente
+- Tarefa limitada por CPU exaure seu período sempre que recebe a CPU
+- Resultado: =vruntime= da tarefa limitada por E/S cresce mais lentamente
+- Quando a tarefa de E/S fica disponível, seu =vruntime= menor dá a ela maior prioridade e ela preempta a de CPU
+
+#+latex: \vfill
+
+Implementação: árvore rubro-negra
+
+- Cada tarefa executável inserida em uma _árvore rubro-negra_ com chave = =vruntime=
+- Tarefas com menor =vruntime= ficam à esquerda; nó mais à esquerda = próxima tarefa
+- Tarefa removida da árvore quando bloqueada (ex.: esperando E/S)
+- Busca do nó mais à esquerda: O(lg N), mas armazenado em cache na variável =rb_leftmost=
+- Determinação da próxima tarefa requer apenas recuperar o valor em cache: O(1)
+
+* Escalonamento de CPU de Tempo Real (Sec. 6.6)
+
+Sistemas de tempo real impõem requisitos especiais ao escalonamento
+
+- _Tempo real não crítico_: processo de tempo real tem preferência sobre processos normais, sem garantias absolutas de prazo
+- _Tempo real crítico_: tarefa deve ser executada dentro de um prazo rigoroso; atendimento após o prazo equivale a não atendimento
+
+#+latex: \vfill
+
+Tópicos existentes na literatura (visão geral)
+
+- Minimização da latência de interrupção e de despacho
+- Escalonamento baseado em prioridades com preempção
+- Escalonamento de taxa monotônica (política de prioridades estática com preempção)
+- Escalonamento do limite-de-tempo-mais-cedo-primeiro (EDF --- earliest-deadline-first)
+- Escalonamento das cotas proporcionais
+- Escalonamento de tempo real do POSIX
+
+* Referências
+
+- Silberschatz, Galvin & Gagne --- _Fundamentos de Sistemas Operacionais_, 9ª ed.
+  - Cap. 6, Seções 6.3, 6.5, 6.6, 6.7
+- Tanenbaum & Bos --- _Sistemas Operacionais Modernos_
+  - Cap. 2, Seções 2.4.3, 2.4.4, 2.4.5, 2.4.6
