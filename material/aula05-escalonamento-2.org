@@ -710,87 +710,110 @@ Permite que processos _migrem entre filas_ conforme seu comportamento
 - Critérios de promoção e rebaixamento entre filas
 - Fila inicial de entrada do processo
 
-* Escalonamento em Sistemas Multiprocessador (Sec. 6.5)
+* Escalonamento em Sistemas Multiprocessador
 
-Com múltiplas CPUs o compartilhamento de carga é possível, mas o escalonamento é mais complexo
+Com múltiplas CPUs, o escalonamento é mais complexo
+- Consideramos sistemas _homogêneos_
+  - Qualquer processador pode executar qualquer processo
+- Mesmo em sistemas homogêneos podem existir restrições
+  - Ex.: dispositivo de E/S em bus privado, aceleradora em CPU específica
 
-- Consideramos sistemas _homogêneos_: qualquer processador pode executar qualquer processo
-- Mesmo em sistemas homogêneos podem existir restrições (ex.: dispositivo de E/S em bus privado)
+#+latex: \vfill\pause
 
-#+latex: \vfill
+** Duas abordagens principais
 
-Duas abordagens principais
+- _Multiprocessamento assimétrico_: um processador mestre decide
+  - toma todas as decisões de escalonamento
+  - demais executam apenas código de usuário
+  - É simples, sem compartilhamento de estruturas
+- _Multiprocessamento simétrico (SMP)_: cada processador escalona
+  - fila de prontos comum ou
+  - filas privadas por processador
+  - requer sincronização cuidadosa
 
-- _Multiprocessamento assimétrico_: um processador mestre toma todas as decisões de escalonamento; os demais executam apenas código de usuário; simples, sem compartilhamento de estruturas
-- _Multiprocessamento simétrico (SMP)_: cada processador faz seu próprio escalonamento; fila de prontos comum ou filas privadas por processador; requer sincronização cuidadosa
+#+latex: \vfill\pause
 
-#+latex: \vfill
+** SMP é a regra: Linux, Mac OS X, etc
+- Cada processador tem fila privada de processos
+- Peculiaridades surgem: ARM's bigLITTLE, Intel's Hybrid cores
 
-- Praticamente todos os SO modernos suportam SMP: Windows, Linux, Mac OS X
-- Na maioria dos sistemas contemporâneos: cada processador tem fila privada de processos
-
-* Multiprocessador: Afinidade com o Processador (Sec. 6.5.2)
+* Multiprocessador: Afinidade com o Processador
 
 Processo em execução preenche o cache do processador com seus dados recentes
 
-- Migração para outro processador invalida o cache do primeiro e exige reenchimento do segundo
-- Alto custo de invalidação e reenchimento motiva manter o processo no mesmo processador
+- Migração para outro processador \to invalidações de linhas de cache
+  - Alto custo disso motiva manter o processo no mesmo processador
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-Formas de afinidade
+** Formas de afinidade
 
-- _Afinidade leve_: SO tenta manter o processo no mesmo processador, mas não garante
-- _Afinidade rígida_: processo especifica um subconjunto de processadores permitidos
-- Linux: afinidade leve por padrão + chamada de sistema =sched_setaffinity()= para afinidade rígida
+- _Afinidade leve_: SO tenta manter afinidade, mas não garante
+  - Linux: é o padrão
+- _Afinidade rígida_: processo força um subconjunto de processadores
+  - Linux: Chamada de sistema =sched_setaffinity()= para afinidade rígida
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-- Arquitetura NUMA (Non-Uniform Memory Access): CPU acessa sua memória local mais rápido
-- Escalonador e alocador de memória podem cooperar para maximizar localidade de dados
+** Influências importantes
 
-* Multiprocessador: Balanceamento de Carga (Sec. 6.5.3)
+- Arquitetura NUMA (Non-Uniform Memory Access)
+  - CPU acessa sua memória local mais rápido
+- Escalonador e alocador de memória
+  - Cooperam para maximizar localidade de dados
 
-SMP requer que a carga de trabalho seja distribuída uniformemente entre os processadores
+* Multiprocessador: Balanceamento de Carga
+
+SMP requer carga bem distribuída uniformemente entre os processadores
 
 - Processador ocioso enquanto outro está sobrecarregado desperdiça recursos
-- Balanceamento de carga é especialmente importante quando há filas privadas por processador
+- Balanceamento de carga: importante quando há filas privadas
+
+#+latex: \vfill\pause
+
+** Duas abordagens de balanceamento
+
+- _Migração por impulsão_
+  - Tarefa periódica verifica a carga
+  - Move processos de processadores sobrecarregados para ociosos
+- _Migração por extração_
+  - Processador ocioso extrai uma tarefa de um processador ocupado
+
+Frequentemente implementadas em paralelo (Linux, FreeBSD ULE)
 
 #+latex: \vfill
 
-Duas abordagens de balanceamento
+** Reflexão
 
-- _Migração por impulsão_: tarefa periódica verifica a carga e move processos de processadores sobrecarregados para ociosos
-- _Migração por extração_: processador ocioso extrai uma tarefa de um processador ocupado
-- As duas técnicas são frequentemente implementadas em paralelo (Linux, FreeBSD ULE)
+- Balanceamento de carga neutraliza os benefícios da afinidade
+- Ir com parsimônia: migrar somente quando desbalanceado demais
+  - Várias métricas podem ser empregadas
+    https://doi.org/10.1145/2304576.2304601 (Olga et al. 2012)
 
-#+latex: \vfill
-
-- Balanceamento de carga neutraliza os benefícios da afinidade com o processador
-- Não há regra absoluta; alguns sistemas só migram quando o desequilíbrio excede um limiar
-
-* Multiprocessador: Processadores Multicore (Sec. 6.5.4)
+* Multiprocessador: Processadores Multicore
 
 Múltiplos núcleos processadores inseridos no mesmo chip físico
 
-- Cada núcleo mantém o estado de sua arquitetura e parece um processador físico ao SO
-- Sistemas multicore são mais rápidos e consomem menos energia do que chips separados
+- Cada núcleo é independente; SO o vê como um processador físico
+- Sistemas multicore mais rápidos, consomem menos energia
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-Obstrução da memória (/memory stall/)
+** Problema recorrente: obstrução da memória (/memory stall/)
 
-- Processador gasta tempo significativo esperando dados da memória (ex.: erro de cache)
+- Processador fica muito tempo esperando pela memória (/cache misses/)
+  - Processo limitado pelos acessos à memória (/memory-bound/)
 - Pode consumir até 50% do tempo do processador
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-Núcleos multithreaded (hardware)
+** Núcleos multithreaded (hardware)
 
-- Dois ou mais threads de hardware por núcleo
-- Quando um thread fica obstruído esperando por memória, o núcleo executa outro thread
-- Exemplo: núcleo dual-core e dual-threaded apresenta quatro processadores lógicos ao SO
-- Escalonador do SO deve considerar dois níveis: threads de hardware e processos de software
+- Duas ou mais threads de hardware por núcleo
+  - Quando uma thread aguarda RAM, outra é executada
+- Exemplo: vejamos este processador (Intel i7-13800H)
+- Escalonador do SO pode considerar dois níveis
+  - Threads de hardware e processos de software
 
 * Escalonamento no Linux 1/2: CFS (Sec. 6.7.1)
 
