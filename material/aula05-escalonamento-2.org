@@ -774,10 +774,10 @@ SMP requer carga bem distribuída uniformemente entre os processadores
 ** Duas abordagens de balanceamento
 
 - _Migração por impulsão_
-  - Tarefa periódica verifica a carga
+  - Processo periódico verifica a carga
   - Move processos de processadores sobrecarregados para ociosos
 - _Migração por extração_
-  - Processador ocioso extrai uma tarefa de um processador ocupado
+  - Processador ocioso extrai um processo de um processador ocupado
 
 Frequentemente implementadas em paralelo (Linux, FreeBSD ULE)
 
@@ -815,49 +815,63 @@ Múltiplos núcleos processadores inseridos no mesmo chip físico
 - Escalonador do SO pode considerar dois níveis
   - Threads de hardware e processos de software
 
-* Escalonamento no Linux 1/2: CFS (Sec. 6.7.1)
+* Escalonamento no Linux 1/2: CFS
+
+# Sec 6.7.1 Silberchatz
 
 Histórico do escalonador do Linux
 
-- Antes do kernel 2.5: variante do algoritmo UNIX tradicional; não otimizado para SMP
-- Kernel 2.5: algoritmo O(1) --- tempo constante independente do número de processos; melhor suporte a SMP
-- Kernel 2.6.23: CFS --- Completely Fair Scheduler --- tornou-se o escalonador padrão
+- antes de 2.5: variante do alg. UNIX tradicional; não otimizado para SMP
+- 2.5 (\approx2003): esc. O(1) p/ qualquer qtdade. de procs.; suporte a SMP
+- 2.6.23 (\approx2007), nasce o CFS
+- 6.6 (\approx2023), nasce o EEVDF https://lwn.net/Articles/925371/
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-Como o CFS funciona
+** Completely Fair Scheduler (CFS)
 
-- Baseado em _classes de escalonamento_, cada uma com prioridade; SO seleciona tarefa da classe de maior prioridade
-- Em vez de quantum fixo, CFS atribui _proporção do tempo de CPU_ a cada tarefa
-- Proporção baseada no _valor refinado_ (nice): de -20 (maior prioridade) a +19 (menor prioridade)
-- Valor refinado padrão: 0
-- CFS usa _latência-alvo_: intervalo em que todas as tarefas executáveis devem rodar pelo menos uma vez
+- Baseado em classes de escalonamento, cada uma com prioridade
+  - CFS seleciona processo da classe de maior prioridade
+- Sem quantum fixo, CFS atribui proporção do tempo de CPU por processo  @@latex: \pause @@
+- Proporção baseada no valor refinado (nice)
+  - De -20 (maior prioridade) a +19 (menor prioridade); valor padrão é zero
+- CFS usa latência-alvo
+  - Intervalo em que todas os processos executáveis devem rodar 1\times pelo menos
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-- Variável =vruntime= por tarefa: tempo de execução virtual com fator de decaimento baseado na prioridade
-- Tarefa com menor =vruntime= é a próxima a executar
+** Alguns detalhes de implementação
 
-* Escalonamento no Linux 2/2: CFS em Ação (Sec. 6.7.1)
+- Cada processo tem um =vruntime=: tempo virtual ajustado pela prio.
+  - Fator de decaimento baseado na prioridade
+- Processo com menor =vruntime= é o próximo a executar
 
-Exemplo: tarefa limitada por E/S versus tarefa limitada por CPU (mesmo valor refinado)
+* Escalonamento no Linux 2/2: CFS em Ação
 
-- Tarefa limitada por E/S executa por períodos curtos e bloqueia frequentemente
-- Tarefa limitada por CPU exaure seu período sempre que recebe a CPU
-- Resultado: =vruntime= da tarefa limitada por E/S cresce mais lentamente
-- Quando a tarefa de E/S fica disponível, seu =vruntime= menor dá a ela maior prioridade e ela preempta a de CPU
+Exemplo: proc. limitado por E/S /vs/ proc. limitado por CPU
 
-#+latex: \vfill
+- Limitado por E/S: períodos curtos de CPU, bloqueia frequentemente
+- Limitado por CPU: exaure seu período sempre que recebe a CPU
 
-Implementação: árvore rubro-negra
+- Resultado: =vruntime= do processo limitado por E/S cresce mais lentamente
+  - Quando um processo de E/S fica disponível, =vruntime= menor dá maior prio.
 
-- Cada tarefa executável inserida em uma _árvore rubro-negra_ com chave = =vruntime=
-- Tarefas com menor =vruntime= ficam à esquerda; nó mais à esquerda = próxima tarefa
-- Tarefa removida da árvore quando bloqueada (ex.: esperando E/S)
-- Busca do nó mais à esquerda: O(lg N), mas armazenado em cache na variável =rb_leftmost=
-- Determinação da próxima tarefa requer apenas recuperar o valor em cache: O(1)
+#+latex: \vfill\pause
 
-* Escalonamento de CPU de Tempo Real (Sec. 6.6)
+** Implementação: árvore rubro-negra
+
+- Processo executável presente na _árvore_ com chave = =vruntime=
+  - Processos com menor =vruntime= ficam à esquerda
+  - O nó da árvore mais à esquerda é a próximo processo
+- Processo sai da árvore quando bloqueado (ex.: esperando E/S)
+
+#+latex: \pause
+
+- Busca do nó mais à esquerda: O(log N)
+- Mas com a cache em variável =rb_leftmost= (sempre atualizado)
+- Determinação do próximo processo recupera o valor em cache: O(1)
+
+* Escalonamento de CPU de Tempo Real
 
 Sistemas de tempo real impõem requisitos especiais ao escalonamento
 
@@ -866,12 +880,13 @@ Sistemas de tempo real impõem requisitos especiais ao escalonamento
 
 #+latex: \vfill
 
-Tópicos existentes na literatura (visão geral)
+** Tópicos existentes na literatura (visão geral)
 
 - Minimização da latência de interrupção e de despacho
 - Escalonamento baseado em prioridades com preempção
-- Escalonamento de taxa monotônica (política de prioridades estática com preempção)
-- Escalonamento do limite-de-tempo-mais-cedo-primeiro (EDF --- earliest-deadline-first)
+- Escalonamento de taxa monotônica
+  - Política de prioridades estática com preempção
+- Escalonamento EDF --- Earliest-Deadline-First
 - Escalonamento das cotas proporcionais
 - Escalonamento de tempo real do POSIX
 
@@ -881,3 +896,11 @@ Tópicos existentes na literatura (visão geral)
   - Cap. 6, Seções 6.3, 6.5, 6.6, 6.7
 - Tanenbaum & Bos --- _Sistemas Operacionais Modernos_
   - Cap. 2, Seções 2.4.3, 2.4.4, 2.4.5, 2.4.6
+- An EEVDF CPU scheduler for Linux
+  - https://lwn.net/Articles/925371/
+- Pearce, O., Gamblin, T., De Supinski, B. R., Schulz, M., & Amato,
+  N. M. (2012, June). Quantifying the effectiveness of load balance
+  algorithms. In Proceedings of the 26th ACM international conference
+  on Supercomputing (pp. 185-194).
+  - https://dl.acm.org/doi/abs/10.1145/2304576.2304601
+  - Seção 3. DEFICIENCIES OF LOAD METRICS
