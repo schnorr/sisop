@@ -58,6 +58,14 @@ Criar uma thread por requisição é mais eficiente do que criar um processo
 - Não há nenhuma proteção entre threads do mesmo processo
   - Assume-se que elas cooperam evitando conflito
 
+** Normal                                                  :B_ignoreheading:
+:PROPERTIES:
+:BEAMER_env: ignoreheading
+:END:
+
+#+attr_latex: :width .4\linewidth
+[[./img/S_fig4.1.png]]
+
 * Benefícios
 
 Quatro categorias principais de benefícios do uso de múltiplas threads:
@@ -177,6 +185,9 @@ O suporte às threads pode ser fornecido no nível do usuário ou do kernel
 - Threads de usuário: gerenciadas sem suporte do kernel (biblioteca)
 - Threads de kernel: gerenciadas diretamente pelo SO
 
+#+attr_latex: :width .6\linewidth
+[[./img/T_fig2.16.png]]
+  
 #+latex: \vfill\pause
 
 ** Três modelos de relacionamento entre threads de usuário e de kernel:
