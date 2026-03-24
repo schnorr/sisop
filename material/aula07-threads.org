@@ -232,7 +232,7 @@ Chamadas de sistema bloqueantes são o principal problema
 
 Faltas de página bloqueiam o processo inteiro
 
-- SO não conhece as threads internos; bloqueia o processo ao buscar página
+- SO não conhece as threads internas; bloqueia o processo ao buscar página
 
 #+latex: \vfill\pause
 
