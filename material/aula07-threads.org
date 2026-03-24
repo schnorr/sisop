@@ -238,8 +238,8 @@ Faltas de página bloqueiam o processo inteiro
 
 Ausência de preempção interna
 
-- Sem interrupção de relógio, threads não podem ser preemptados
-- Um thread que não cede a CPU voluntariamente impede todos os outros
+- Sem interrupção de relógio, threads não podem ser preemptadas
+- Uma thread que não cede a CPU voluntariamente impede as demais
 - Solução: chamar =thread_yield= periodicamente (cooperativo)
 
 #+latex: \vfill\pause
