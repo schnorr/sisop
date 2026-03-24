@@ -216,8 +216,8 @@ Muitas threads de nível de usuário mapeados para uma única thread de kernel
 ** Limitações importantes
 
 - Uma chamada de sistema bloqueante bloqueia o processo inteiro
-- Falta de página em um thread bloqueia todos os demais
-- Apenas um thread acessa o kernel por vez
+- Falta de página em um thread bloqueia todas as demais
+- Apenas uma thread acessa o kernel por vez
   - Sem paralelismo real em multicore
 
 * Problemas do Modelo Muitos-Para-Um
