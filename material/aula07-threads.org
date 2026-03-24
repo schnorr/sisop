@@ -346,7 +346,7 @@ O padrão Pthreads (IEEE 1003.1c) define uma API portável para threads
 
 * Exemplo: Pthreads com 1 thread
 
-#+begin_src C
+#+begin_src C :tangle aula07-pthread-1thread.c
 #include <pthread.h>
 #include <stdio.h>
 
@@ -376,7 +376,7 @@ void *runner(void *param) {
 
 Para aguardar múltiplas threads, insere-se =pthread_join= em um laço:
 
-#+begin_src C
+#+begin_src C :tangle aula07-pthread-Nthread.c
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
