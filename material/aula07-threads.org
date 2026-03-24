@@ -349,6 +349,7 @@ O padrão Pthreads (IEEE 1003.1c) define uma API portável para threads
 #+begin_src C :tangle aula07-pthread-1thread.c
 #include <pthread.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 int sum; /* dado compartilhado entre as threads */
 
