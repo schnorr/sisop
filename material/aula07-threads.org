@@ -220,8 +220,6 @@ Muitas threads de nível de usuário mapeados para uma única thread de kernel
 - Apenas um thread acessa o kernel por vez
   - Sem paralelismo real em multicore
 
-#+latex: \vfill\pause
-
 * Problemas do Modelo Muitos-Para-Um
 
 Chamadas de sistema bloqueantes são o principal problema
