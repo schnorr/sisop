@@ -247,6 +247,7 @@ Ausência de preempção interna
 ** Conclusão
 
 - Muito pouco utilizado em razão da falta de suporte a multicore
+  - Mas ... =<ucontext.h>= (em alguns casos é bem útil)
 
 * Modelo Um-Para-Um
 
