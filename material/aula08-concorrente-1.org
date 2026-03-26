@@ -1,0 +1,606 @@
+# -*- coding: utf-8 -*-
+# -*- mode: org -*-
+#+startup: beamer overview indent
+#+LANGUAGE: pt-br
+#+TAGS: noexport(n)
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+EXPORT_SELECT_TAGS: export
+
+#+Title: Sistemas Operacionais
+#+Subtitle: Seção Crítica e Exclusão Mútua
+#+Author: Prof. Lucas Mello Schnorr (UFRGS)
+#+Date: \copyleft
+
+#+LaTeX_CLASS: beamer
+#+LaTeX_CLASS_OPTIONS: [xcolor=dvipsnames,10pt]
+#+OPTIONS: H:1 num:t toc:nil \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
+#+LATEX_HEADER: \input{org-babel.tex}
+
+* Estrutura da aula
+
+- Produtor-Consumidor (Exemplo motivador)
+  - Problema de condição de corrida
+- Região crítica e exclusão mútua
+- Conceito de espera ativa (/Busy-wait/)
+- Exclusão mútua com espera ocupada
+  - Desabilitando interrupções (HW)
+  - Variáveis do tipo trava (SW)
+  - Alternância explícita (SW)
+  - Algoritmo de Peterson (SW)
+  - Instrução TSL e ações atômicas de hardware (HW)
+- Exclusão mútua sem espera ocupada
+  - Dormir e acordar
+
+* Introdução sobre Concorrência
+
+Comunicação entre processos ou threads é peça chave
+
+#+latex: \vfill
+
+** Processos
+
+Três questões fundamentais na comunicação entre processos (IPC):
+
+1. Como passar informações de um processo para outro
+2. Como garantir que dois processos não interfiram em dados compartilhados
+   - =/dev/shm/= com =mmap= em memória
+   - Arquivos abertos simultaneamente, via =fork()= ou =fopen()=
+   - Recursos como interface de rede, etc
+3. Como sequenciar corretamente quando existem dependências
+
+#+latex: \vfill
+
+** Threads
+
+Compartilham o espaço de endereçamento para comunicar
+- Variáveis globais
+- Regiões de memória alocadas no monte (/heap/)
+- Os mesmo itens de processos
+
+* Produtor-Consumidor com espera ativa
+
+Espera ativa (/busy wait/)
+- O fio de execução não bloqueia nem cede a CPU
+- Testar continuamente uma variável é chamado de espera ocupada (/spinlock/)
+
+** Coluna da esquerda                                                :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.48
+:END:
+
+*** Produtor
+
+#+ATTR_LATEX: :options fontsize=\normalsize
+#+begin_src C
+while (true) {
+  /* produz algo em prod */
+  /* espera ativamente */
+  while (counter == BUF_SIZE);
+  buffer[in] = prod;
+  in = (in + 1) % BUF_SIZE;
+  counter++;
+}
+#+end_src
+
+#+latex: \pause
+
+** Coluna da direita                                                :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.48
+:END:
+
+*** Consumidor
+
+#+ATTR_LATEX: :options fontsize=\normalsize
+#+begin_src C
+while (true) {
+  /* espera ativamente */  
+  while (counter == 0);
+  cons = buffer[out];
+  out = (out + 1) % BUF_SIZE;
+  counter--;
+  /* consome algo de cons */
+}
+#+end_src
+
+** Normal                                                  :B_ignoreheading:
+:PROPERTIES:
+:BEAMER_env: ignoreheading
+:END:
+
+#+latex: \vfill\pause
+
+As rotinas estão corretas separadamente, mas podem falhar concorrentemente
+
+#+latex: \vfill\pause
+
+Vamos supor
+- =counter = 5=
+- Execução concorrente de =counter++= e =counter--=
+
+* Concorrência no produtor-consumidor
+Em linguagem de máquina
+** Esquerda                                                          :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.48
+:END:
+*** =counter++=
+
+#+begin_src C
+reg1 = counter  // reg1 = 5
+reg1 = reg1 + 1 // reg1 = 6
+counter = reg1  // counter = 6
+#+end_src
+
+** Direita                                                           :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.48
+:END:
+*** =counter--=
+
+#+begin_src C
+reg2 = counter  // reg2 = 5
+reg2 = reg2 - 1 // reg2 = 4
+counter = reg2  // counter = 4
+#+end_src
+
+** Uma intercalação possível
+
+#+latex: \vfill\pause
+
+| *Tempo* | *Ente*       | *Ação*            | *Valor*          |                   |
+|-------+------------+-----------------+----------------+-------------------|
+| T0    | produtor   | reg1 = counter  | {reg1 = 5}     | @@latex: \pause@@ |
+| T1    | produtor   | reg1 = reg1 + 1 | {reg1 = 6}     | @@latex: \pause@@ |
+| T2    | consumidor | reg2 = counter  | {reg2 = 5}     | @@latex: \pause@@ |
+| T3    | consumidor | reg2 = reg2 – 1 | {reg2 = 4}     | @@latex: \pause@@ |
+| T4    | produtor   | counter = reg1  | {contador = 6} | @@latex: \pause@@ |
+| T5    | consumidor | counter = reg2  | {contador = 4} |                   |
+
+*** Resultado incorreto
+\to =counter = 4= (ou 6), quando deveria ser 5
+
+* Condição de Corrida
+
+Vários processos acessam e manipulam os mesmos dados concorrentemente
+
+- O resultado depende da /ordem específica/ em que o acesso ocorre
+
+#+latex: \vfill\pause
+
+** Exemplo histórico: diretório de spool de impressão
+
+- Dois processos leem a variável =in= (próxima vaga livre) ao mesmo tempo
+- Ambos obtêm o mesmo valor e escrevem na mesma posição
+- Um dos arquivos é sobrescrito e nunca será impresso
+
+#+latex: \vfill\pause
+
+** A crescente importância dos sistemas multicore aumenta o problema
+
+- Mais núcleos significam mais execução paralela real
+- Condições de corrida tornam-se mais frequentes e difíceis de depurar
+
+* Região Crítica
+
+Seção do código onde o processo (ou a thread) acessa dados compartilhados
+
+** Normal                                                            :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.3
+:END:
+#+ATTR_LATEX: :options fontsize=\normalsize
+#+begin_src C
+do {
+  { /* REGIÃO remanescente */ }  
+  //entrada
+  { /* REGIÃO CRÍTICA */ }
+  //saída
+  { /* REGIÃO remanescente */ }
+}while(true);
+#+end_src
+
+#+latex: \vfill\pause
+
+** Requisitos para uma solução correta
+
+1. Exclusão mútua \to apenas um processo na região crítica por vez
+2. Progresso \to se ninguém está na região crítica, quem está na entrada
+   é candidato e não se pode adiar esta decisão
+3. Espera limitada \to há um limite para quantas vezes outros processos
+   entram antes de mim
+
+#+latex: \vfill\pause
+
+#+begin_center
+Nenhuma suposição sobre velocidades relativas ou número de CPUs
+#+end_center
+
+* Exclusão mútua com espera ativa
+
+#+latex: \vfill
+
+- Desabilitando interrupções (HW #1)
+  - Solução por hardware: impedir chaveamento de contexto
+- Variáveis do tipo trava (SW #2)
+  - Variável compartilhada indicando se a seção está ocupada
+- Alternância explícita (SW #3)
+  - Variável =turn= controla de quem é a vez
+- Algoritmo de Peterson (SW #4)
+  - Combina alternância com variáveis de interesse
+- Instrução TSL (HW #5)
+  - Instrução atômica de hardware: /Test and Set Lock/
+
+#+latex: \vfill    
+    
+* #1 Desabilitando interrupções (HW)
+
+Processo desabilita interrupções ao entrar na região crítica
+
+- Sem interrupção de relógio, não há chaveamento de contexto
+- Processo examina e atualiza a memória compartilhada sem interferência
+
+#+latex: \vfill
+
+** Problemas dessa abordagem
+
+- Dar aos processos de usuário o poder de desligar interrupções é perigoso
+  - Se um processo nunca reabilitar, o sistema pode travar
+- Em multiprocessadores, afeta somente a CPU que executou a instrução
+  - Outras CPUs continuam executando e acessando a memória compartilhada
+
+#+latex: \vfill\pause
+
+** Conclusão
+
+- Técnica útil dentro do próprio kernel (por poucas instruções)
+- Não é apropriada como mecanismo geral para processos de usuário
+
+* #2 Variáveis do tipo trava (SW)
+
+# #+ATTR_LATEX: :options fontsize=\normalsize
+#+begin_src C :tangle lock_falho.c
+#include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
+int lock = 0; // variável compartilhada lock, inicialmente em zero
+void *fun(void *arg) {
+    while (lock != 0); // espera ativa
+    lock = 1;
+    printf("Thread %d entrou\n", *(int*)arg);
+    usleep(100000); // a região crítica
+    printf("Thread %d saiu\n", *(int*)arg);
+    lock = 0;
+    return NULL;
+}
+int main(void) {
+    pthread_t t[2];
+    int id[] = {1, 2};
+    for (int i = 0; i < 2; i++) pthread_create(&t[i], NULL, fun, &id[i]);
+    for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
+}
+#+end_src
+
+#+latex: \pause
+
+** Contém a mesma falha fatal do diretório de spool
+- Dois processos estão na região crítica ao mesmo tempo
+** Verificar a trava duas vezes antes de armazená-la não ajuda
+- A corrida pode ocorrer entre a segunda verificação e o armazenamento
+* #3 Alternância explícita (SW)
+
+Variável =turn= controla de quem é a vez de entrar na região crítica
+
+** Coluna da esquerda                                                :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.48
+:END:
+
+*** Processo 0 (P0, muito lento)
+
+#+ATTR_LATEX: :options fontsize=\normalsize
+#+begin_src C
+while (TRUE) {
+  while (turn != 0);
+  critical_region();
+  turn = 1;
+  noncritical_region();
+}
+#+end_src
+
+#+latex: \pause
+
+** Coluna da direita                                                :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.48
+:END:
+
+*** Processo 1 (P1, muito rápido)
+
+#+ATTR_LATEX: :options fontsize=\normalsize
+#+begin_src C
+while (TRUE) {
+  while (turn != 1);
+  critical_region();
+  turn = 0;
+  noncritical_region();
+}
+#+end_src
+
+** Ignora                                                  :B_ignoreheading:
+:PROPERTIES:
+:BEAMER_env: ignoreheading
+:END:
+
+#+latex: \pause\vfill
+
+** Problema: viola a condição de progresso
+
+- Se P1 terminar rápido, precisa esperar P0 entrar e sair para voltar
+- P1 é bloqueado por um processo que não está em sua região crítica
+- Exige alternância estrita entre os processos
+
+* #4 Algoritmo de Peterson (SW)
+
+Combina alternância com variáveis de interesse (=flag[]=)
+
+#+begin_src C
+#define N 2 /* numero de processos */
+int turn;                         /* de quem e a vez? */
+int interested[N];                /* todos os valores 0 (FALSE) */
+void enter_region (int process) { /* processo e 0 ou 1 */
+  int other;                      /* processo e 0 ou 1 */
+  other = 1 - process;            /* o oposto do processo */
+  interested[process] = TRUE;     /* mostra que voce esta interessado */
+  turn = process;                 /* altera o valor de turn */
+  while (turn == process && interested[other] == TRUE); /* espera ativa */
+}
+
+void leave_region(int process) /* processo: quem esta saindo */
+{
+  interested[process] = FALSE; /* indica a saida da regiao critica */
+}
+#+end_src
+
+#+latex: \vfill
+
+- =flag[i] = true=: processo Pi declara interesse em entrar
+- =turn = j=: cede a vez ao outro processo por cortesia
+- Se ambos tentam ao mesmo tempo, o último a escrever =turn= espera
+
+* #4 Algoritmo de Peterson: garantias (SW)
+
+** Satisfaz os três requisitos da seção crítica
+1. Exclusão mútua
+   - Se ambos na seção crítica, =interested[0] = interested[1] = true=
+   - Mas =turn= só pode ser 0 ou 1, não ambos
+   - Logo, um deles ficou bloqueado no =while= (contradição)
+2. Progresso
+   - Se Pj não quer entrar, =interested[j] = false= e Pi entra imediatamente
+   - Se ambos querem entrar, =turn= decide; não há adiamento indefinido
+3. Espera limitada
+   - Quando Pj sai, faz =interested[j] = false= e Pi entra
+   - Pi espera no máximo uma entrada de Pj
+
+#+latex: \pause\vfill
+
+** Problemas
+
+- Assume consistência sequencial de memória
+  - CPUs modernas tem reordenamento de instruções
+  - Caches independentes por núcleo
+  - Compilador ou o hardware podem reordenar as escritas
+- Não escala além de dois processos na formulação original
+
+* #5 A instrução TSL (HW)
+
+Soluções de software não garantem funcionamento em arquiteturas modernas
+
+- Instruções =load= e =store= podem ser reordenadas pelo hardware
+
+#+latex: \vfill
+
+Instrução =TSL RX,LOCK= (/Test and Set Lock/):
+
+- Lê o conteúdo de =LOCK= para o registrador =RX=
+- Armazena um valor diferente de zero em =LOCK=
+- Operação atômica e indivisível (barramento de memória travado)
+
+#+latex: \vfill\pause
+
+** Reflexão
+- Travar o barramento de memória impede acesso de outras CPUs
+- Diferente de desabilitar interrupções (que só afeta uma CPU)
+
+#+latex: \vfill\pause
+
+** Instruções parecidas com TSL
+- =XCHG=: troca atômica de registrador e memória
+- =CMPXCHG= - /Compare-and-swap/: base dos mutexes e estruturas lock-free
+- =XADD= - Incremento atômico: usado em contadores, semáforos
+- =BTS/BTR= - /Test-and-set/reset:/ em bits individuais
+
+* #5 Usando a instrução TSL (HW)
+** Coluna da esquerda                                               :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.51
+:END:
+
+*** Usando =test_and_set=
+
+#+begin_src C
+do {
+  /* espera ativa */  
+  while (test_and_set(&lock)); //enter_region
+  
+  /* região crítica */
+  
+  lock = false;                //leave_region
+  /* região remanescente */
+} while (true);
+#+end_src
+
+#+latex: \pause
+
+** Coluna da direita                                                :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.45
+:END:
+
+*** Em linguagem de montagem
+
+#+begin_src C
+enter_region:
+  TSL REGISTER,LOCK
+  CMP REGISTER,#0
+  JNE enter_region
+  RET
+
+leave_region:
+  MOVE LOCK,#0
+  RET
+#+end_src
+
+** Normal                                                  :B_ignoreheading:
+:PROPERTIES:
+:BEAMER_env: ignoreheading
+:END:
+
+#+latex: \vfill\pause
+
+** Problema da espera ilimitada
+
+- Não há fila, não há vez \to /starvation/
+  - Um processo que sai da região pode já entrar novamente
+
+* #5 Usando a instrução TSL (com espera limitada) (HW)
+
+Algoritmo com =test_and_set= que satisfaz os três requisitos:
+
+** Código                                                            :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.55
+:END:
+#+ATTR_LATEX: :options fontsize=\small
+#+begin_src C
+do {
+  waiting[i] = true;
+  key = true;
+  while (waiting[i] && key)
+    key = test_and_set(&lock);
+  waiting[i] = false;
+  /* região crítica */
+  j = (i + 1) % n;
+  while ((j != i) && !waiting[j])
+    j = (j + 1) % n;
+  if (j == i)
+    lock = false;
+  else
+    waiting[j] = false;
+  /* região remanescente */
+} while (true);
+#+end_src
+
+#+latex: \vfill
+
+** Normal                                                  :B_ignoreheading:
+:PROPERTIES:
+:BEAMER_env: ignoreheading
+:END:
+- Ao sair, varre =waiting[]= ciclicamente e libera o próximo processo
+- Qualquer processo espera no máximo n - 1 entradas dos demais
+
+* Exclusão mútua sem espera ativa
+
+Peterson, TSL e XCHG funcionam mas têm o defeito da espera ativa
+
+- Processo fica em /spinlock/ consumindo tempo de CPU inutilmente
+- Ainda que em algumas situações isso possa ser benéfico (esperas curtas)
+
+#+latex: \vfill
+
+** Problema da inversão de prioridade
+
+- Processo H (alta prioridade) e L (baixa prioridade)
+- L está na região crítica e H fica pronto para executar
+- H faz espera ocupada, mas L nunca é escalonado para sair da região
+- Resultado: ambos ficam bloqueados indefinidamente
+
+#+latex: \vfill\pause
+
+** Solução
+- Usar primitivas que bloqueiem o processo ao invés de esperar ativamente
+
+* Dormir e Acordar
+** Novas primitivas
+
+#+latex: \vfill
+
+=sleep=: chamada de sistema que suspende o processo que a chamou
+
+=wakeup(P)=: chamada de sistema que desperta o processo P
+
+** Left                                                              :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.48
+:END:
+
+*** Produtor
+#+ATTR_LATEX: :options fontsize=\small
+#+begin_src C
+#define N 100
+int count = 0;
+void producer(void) {
+  int item;
+  while (TRUE) {
+    item = produce_item();
+    if (count == N)
+      sleep();
+    insert_item(item);
+    count = count + 1;
+    if (count == 1)
+      wakeup(consumer);
+  }
+}
+#+end_src
+
+#+latex: \vfill\pause
+
+** Right                                                             :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.48
+:END:
+
+*** Consumidor
+#+ATTR_LATEX: :options fontsize=\small
+#+begin_src C
+
+
+void consumer(void) {
+  int item;
+  while (TRUE) {
+    if (count == 0)
+      sleep();
+    item = remove_item();
+    count = count - 1;
+    if (count == N - 1)
+      wakeup(producer);
+    consume_item(item);
+  }
+}
+#+end_src
+
+* Dormir e Acordar (Problema)
+
+1. Consumidor lê =count = 0= mas é interrompido antes de dormir
+   - Produtor insere item, incrementa =count=, chama =wakeup(consumidor)=
+   - Consumidor não está dormindo ainda; o sinal de despertar é perdido @@latex: \pause@@
+2. Consumidor retoma e dorme; produtor eventualmente enche o buffer e dorme @@latex: \pause@@
+3. Ambos dormem para sempre
+
+* Referências
+
+- Silberchatz
+  - Cap. 5, Secs. 5.1, 5.2, 5.3, 5.4
+- Tanenbaum
+  - Cap. 2, Secs. 2.3.1, 2.3.2, 2.3.3
