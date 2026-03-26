@@ -118,6 +118,56 @@ Vamos supor
 - =counter = 5=
 - Execução concorrente de =counter++= e =counter--=
 
+** Programa Exemplo                                               :noexport:
+#+begin_src C :tangle aula08-pc.c
+// gcc -Wall -o pc aula08-pc.c -lpthread
+#include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
+
+#define BUF_SIZE 4
+#define N 10
+
+int buffer[BUF_SIZE], in = 0, out = 0, counter = 0;
+
+void *produtor(void *arg) {
+    for (int prod = 1; prod <= N; prod++) {
+        while (counter == BUF_SIZE);
+        buffer[in] = prod;
+        in = (in + 1) % BUF_SIZE;
+        /* lê, pausa, escreve — janela de corrida exposta deliberadamente */
+        int tmp = counter;
+        usleep(1);
+        counter = tmp + 1;
+        printf("[P] produziu %2d | counter=%d\n", prod, counter);
+    }
+    return NULL;
+}
+
+void *consumidor(void *arg) {
+    for (int i = 0; i < N; i++) {
+        while (counter == 0);
+        int cons = buffer[out];
+        out = (out + 1) % BUF_SIZE;
+        /* lê, pausa, escreve — janela de corrida exposta deliberadamente */
+        int tmp = counter;
+        usleep(1);
+        counter = tmp - 1;
+        printf("[C] consumiu %2d | counter=%d\n", cons, counter);
+    }
+    return NULL;
+}
+
+int main(void) {
+    pthread_t tp, tc;
+    pthread_create(&tp, NULL, produtor,   NULL);
+    pthread_create(&tc, NULL, consumidor, NULL);
+    pthread_join(tp, NULL);
+    pthread_join(tc, NULL);
+    printf("\ncounter final (deveria ser 0): %d\n", counter);
+    return 0;
+}
+#+end_src
 * Concorrência no produtor-consumidor
 Em linguagem de máquina
 ** Esquerda                                                          :BMCOL:
