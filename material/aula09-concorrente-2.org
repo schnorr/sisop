@@ -300,7 +300,7 @@ void consumer(void) {
 }
 #+end_src
 
-* Dormir e Acordo com POSIX Semáforos (=<semaphore.h>=)
+* Dormir e Acordo com POSIX Semáforos
 * Problemas com Semáforos
 
 A ordem das operações com semáforos é crítica
