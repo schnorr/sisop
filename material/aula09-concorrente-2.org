@@ -19,22 +19,27 @@
 * Estrutura da aula
 
 - Conceitual e prática
-  - Mutex
-  - Variáveis de condição
-  - Semáforos
+  - Mutex (M)
+  - Variáveis de condição (C)
+  - Semáforos (S)
 - Versões com Pthreads
 - Problemas clássicos de sincronização
   - Problema do produtor-consumidor
-  - Problema da inversão de prioridades
   - Problema do jantar dos filósofos
-  - Problema dos leitores/escritores
+  - Problema dos leitores/escritores (tema de casa)
 
-* Mutex 1/2
+#  - Problema da inversão de prioridades    
+    
+* Mutex (Mutual Exclusion)
 
-Ferramenta de software mais simples para resolver o problema da seção crítica
+Um mutex é uma variável compartilhada: destravado (0) ou travado (!=0)
+- Pode ser empregado um único bit, mas tipicamente é um valor inteiro
+- Podemos implementar com a instrução TSL (veja aula passada)
+- É a ferramenta mais simples para garantir exclusão mútua
 
 #+latex: \vfill
 
+Funcionamento
 - Processo deve adquirir o lock antes de entrar na seção crítica
 - Processo libera o lock quando sai da seção crítica
 
@@ -59,11 +64,7 @@ release() {
 - Principal desvantagem: espera ativa desperdiça ciclos de CPU
 - Spinlocks são úteis quando o lock é mantido por períodos curtos
 
-* Mutex 2/2
-
-Um mutex é uma variável compartilhada: destravado (0) ou travado (!=0)
-- Pode ser empregado um único bit, mas tipicamente é um valor inteiro
-- Podemos implementar com a instrução TSL (veja aula passada)
+* Mutex com =thread_yield= (evitando a espera ativa)
 
 Podemos evitar a espera ativa com =thread_yield=
 - Chama o escalonador de threads no espaço do usuário
@@ -95,7 +96,7 @@ Pthreads proporcionam funções para sincronizar threads via mutex
 
 - Uma thread trava o mutex para entrar na região crítica
 - Se o mutex já estiver travado, a thread que chamou é bloqueada
-- Quando desbloqueado, uma thread esperando é autorizada a continuar
+- Quando desbloqueada, uma thread esperando é autorizada a continuar
 
 #+latex: \vfill
 
@@ -109,6 +110,7 @@ Pthreads proporcionam funções para sincronizar threads via mutex
 
 #+latex: \vfill
 
+Comentários
 - =pthread_mutex_trylock=: permite espera ocupada quando necessário
 - Mutexes podem ter atributos para fins especializados
 - As travas não são obrigatórias; cabe ao programador usá-las corretamente
@@ -145,6 +147,108 @@ int main() {
   pthread_mutex_destroy(&mutex);
   printf("Valor final do contador: %ld\n", contador);
   return 0;
+}
+#+end_src
+
+* Variáveis de Condição
+
+- Mecanismo de sincronização entre threads
+- Permite esperar até que uma condição lógica seja verdadeira
+- Sempre usado em conjunto com mutex
+- Evita a espera ativa totalmente
+
+#+latex: \vfill\pause
+
+** Funcionamento
+
+1. Thread adquire o mutex
+2. Verifica uma condição do programa
+3. Se falsa → espera na variável de condição
+   - =pthread_cond_wait= destrava atomicamente o mutex que está segurando
+4. Outra thread sinaliza a condição
+5. Thread acorda e reavalia a condição
+
+#+latex: \vfill\pause
+
+** Observações
+
+- Variáveis de condição não têm memória
+  - Se um sinal é enviado sem thread esperando, o sinal é perdido
+  - Programadores devem ser cuidadosos para não perder sinais 
+- No passo 3, usar while e não if \to Evita problemas de sincronização
+
+* Variáveis de Condição em Pthreads
+
+Pthreads oferecem variáveis de condição além dos mutexes
+
+#+latex: \vfill
+
+| Chamada de thread        | Descrição                                             |
+|--------------------------+-------------------------------------------------------|
+| =pthread_cond_init=        | Cria uma variável de condição                         |
+| =pthread_cond_destroy=     | Destrói uma variável de condição                      |
+| =pthread_cond_wait=        | É bloqueado esperando por um sinal                    |
+| =pthread_cond_signal=      | Sinaliza para outra thread e a desperta               |
+| =pthread_cond_broadcast=   | Sinaliza para múltiplas threads e desperta todas      |
+
+#+latex: \vfill
+
+- =pthread_cond_wait=: bloqueia atomicamente liberando o mutex
+- =pthread_cond_broadcast=: acorda todas as múltiplas threads bloqueadas
+  - Por isso devemos usar o =while=, a condição pode ter mudado
+
+* Exemplo de Produtor-Consumidor com Mutex e Condição
+
+#+begin_src C :tangle aula09-pc-mutex-cond.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#define MAX 100
+pthread_mutex_t the_mutex;
+pthread_cond_t condc, condp;
+int buffer = 0;
+
+void *producer(void *ptr) {
+  int i;
+  for (i = 1; i <= MAX; i++) {
+    pthread_mutex_lock(&the_mutex);
+    while (buffer != 0) pthread_cond_wait(&condp, &the_mutex);
+    buffer = i;
+    pthread_cond_signal(&condc);
+    pthread_mutex_unlock(&the_mutex);
+  }
+  pthread_exit(NULL);
+}
+void *consumer(void *ptr) {
+  int i;
+  for (i = 1; i <= MAX; i++) {
+    pthread_mutex_lock(&the_mutex);
+    while (buffer == 0) pthread_cond_wait(&condc, &the_mutex);
+    buffer = 0;
+    pthread_cond_signal(&condp);
+    pthread_mutex_unlock(&the_mutex);
+  }
+  pthread_exit(NULL);
+}
+
+int main() {
+    pthread_t prod, cons;
+
+    pthread_mutex_init(&the_mutex, NULL);
+    pthread_cond_init(&condc, NULL);
+    pthread_cond_init(&condp, NULL);
+
+    pthread_create(&prod, NULL, producer, NULL);
+    pthread_create(&cons, NULL, consumer, NULL);
+
+    pthread_join(prod, NULL);
+    pthread_join(cons, NULL);
+
+    pthread_mutex_destroy(&the_mutex);
+    pthread_cond_destroy(&condc);
+    pthread_cond_destroy(&condp);
+
+    return 0;
 }
 #+end_src
 
@@ -300,7 +404,110 @@ void consumer(void) {
 }
 #+end_src
 
-* Dormir e Acordo com POSIX Semáforos
+* Análise da solução em Pthreads
+
+Semáforos são usados de duas maneiras distintas no produtor-consumidor:
+
+- Exclusão mútua: =mutex= garante que apenas um processo acessa o buffer
+- Sincronização: =full= e =empty= garantem sequências de execução corretas
+
+* Produtor-Consumidor com POSIX Semáforos 1/2
+** Funções básicas
+#+begin_src C :tangle aula09-pc-sem.c :main no
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <unistd.h>
+#define N 100
+int buffer[N];
+int in = 0;
+int out = 0;
+
+int produce_item() {
+  int item = rand() % 1000;
+  usleep(1000000); //custo de produção: 1s
+  printf("%lu Produzido: %d\n", pthread_self(), item);
+  return item;
+}
+void insert_item(int item) {
+  buffer[in] = item;
+  in = (in + 1) % N;
+}
+int remove_item() {
+  int item = buffer[out];
+  out = (out + 1) % N;
+  return item;
+}
+void consume_item(int item) {
+  usleep(10000);  //custo de consumo: 0.1s
+  printf("%lu Consumido: %d\n", pthread_self(), item);
+}
+#+end_src
+
+* Produtor-Consumidor com POSIX Semáforos 2/2
+** Left                                                              :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.48
+:END:
+*** Principal
+#+ATTR_LATEX: :options fontsize=\scriptsize
+#+begin_src C :tangle aula09-pc-sem.c :main no
+#include <semaphore.h>
+sem_t mutex;
+sem_t empty;
+sem_t full;
+
+void *producer(void *arg);
+void *consumer(void *arg);
+
+int main() {
+  pthread_t prod, cons;
+  sem_init(&mutex, 0, 1);
+  sem_init(&empty, 0, N);
+  sem_init(&full, 0, 0);
+  pthread_create(&prod, NULL, producer, NULL);
+  pthread_create(&cons, NULL, consumer, NULL);
+  pthread_join(prod, NULL);
+  pthread_join(cons, NULL);
+  sem_destroy(&mutex);
+  sem_destroy(&empty);
+  sem_destroy(&full);
+  return 0;
+}
+#+end_src
+
+** Right                                                             :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.48
+:END:
+
+*** Produtor e consumidor
+#+begin_src C :tangle aula09-pc-sem.c :main no
+void *producer(void *arg) {
+  int item;
+  while (1) {
+    item = produce_item();
+    sem_wait(&empty);
+    sem_wait(&mutex);
+    insert_item(item);
+    sem_post(&mutex);
+    sem_post(&full);
+  }
+}
+
+void *consumer(void *arg) {
+  int item;
+  while (1) {
+    sem_wait(&full);
+    sem_wait(&mutex);
+    item = remove_item();
+    sem_post(&mutex);
+    sem_post(&empty);
+    consume_item(item);
+  }
+}
+#+end_src
+
 * Problemas com Semáforos
 
 A ordem das operações com semáforos é crítica
@@ -340,118 +547,7 @@ void producer(void) {
 - Apenas um processo pode estar ativo num monitor em qualquer instante
 - O compilador implementa a exclusão mútua: menos propenso a erros
 
-* Variáveis de Condição
-
-- Permite esperar até que uma condição lógica seja verdadeira
-- Sempre usado em conjunto com mutex
-- Evita espera ativa
-
-#+begin_src C
-pthread_mutex_t mutex;
-pthread_cond_t cond;
-#+end_src
-
-* Variáveis de Condição em Pthreads
-
-Pthreads oferecem variáveis de condição além dos mutexes
-
-- Mutexes: permitem ou bloqueiam acesso à região crítica
-- Variáveis de condição: bloqueiam threads quando uma condição não é atendida
-
-#+latex: \vfill
-
-| Chamada de thread        | Descrição                                             |
-|--------------------------+-------------------------------------------------------|
-| =pthread_cond_init=        | Cria uma variável de condição                         |
-| =pthread_cond_destroy=     | Destrói uma variável de condição                      |
-| =pthread_cond_wait=        | É bloqueado esperando por um sinal                    |
-| =pthread_cond_signal=      | Sinaliza para outra thread e a desperta               |
-| =pthread_cond_broadcast=   | Sinaliza para múltiplas threads e desperta todas      |
-
-#+latex: \vfill
-
-- =pthread_cond_wait= bloqueia atomicamente liberando o mutex
-- =pthread_cond_broadcast= usada quando múltiplas threads esperam pelo mesmo sinal
-- O comando que coloca a thread para dormir deve checar a condição novamente ao acordar
-
-* Mutex e Variáveis de condição em Pthreads
-
-Variáveis de condição e mutexes são sempre usados juntos
-
-- Uma thread trava um mutex e espera em uma variável condicional
-- Outra thread sinaliza e a primeira pode continuar
-- =pthread_cond_wait= destrava atomicamente o mutex que está segurando
-
-#+latex: \vfill
-
-Variáveis de condição não têm memória (diferentemente de semáforos)
-
-- Se um sinal é enviado sem thread esperando, o sinal é perdido
-- Programadores devem ser cuidadosos para não perder sinais
-
-#+latex: \vfill
-
-Semáforos são usados de duas maneiras distintas no produtor-consumidor:
-
-- Exclusão mútua: =mutex= garante que apenas um processo acessa o buffer
-- Sincronização: =full= e =empty= garantem sequências de execução corretas
-
-* Exemplo de Produtor-Consumidor com Mutex e Vars. de Condição
-
-#+begin_src C :tangle aula09-pc-pthreads.c
-#include <stdio.h>
-#include <stdlib.h>
-#include <pthread.h>
-#define MAX 100
-pthread_mutex_t the_mutex;
-pthread_cond_t condc, condp;
-int buffer = 0;
-
-void *producer(void *ptr) {
-  int i;
-  for (i = 1; i <= MAX; i++) {
-    pthread_mutex_lock(&the_mutex);
-    while (buffer != 0) pthread_cond_wait(&condp, &the_mutex);
-    buffer = i;
-    pthread_cond_signal(&condc);
-    pthread_mutex_unlock(&the_mutex);
-  }
-  pthread_exit(NULL);
-}
-void *consumer(void *ptr) {
-  int i;
-  for (i = 1; i <= MAX; i++) {
-    pthread_mutex_lock(&the_mutex);
-    while (buffer == 0) pthread_cond_wait(&condc, &the_mutex);
-    buffer = 0;
-    pthread_cond_signal(&condp);
-    pthread_mutex_unlock(&the_mutex);
-  }
-  pthread_exit(NULL);
-}
-
-int main() {
-    pthread_t prod, cons;
-
-    pthread_mutex_init(&the_mutex, NULL);
-    pthread_cond_init(&condc, NULL);
-    pthread_cond_init(&condp, NULL);
-
-    pthread_create(&prod, NULL, producer, NULL);
-    pthread_create(&cons, NULL, consumer, NULL);
-
-    pthread_join(prod, NULL);
-    pthread_join(cons, NULL);
-
-    pthread_mutex_destroy(&the_mutex);
-    pthread_cond_destroy(&condc);
-    pthread_cond_destroy(&condp);
-
-    return 0;
-}
-#+end_src
-
-* Deadlocks e Inanição
+* Deadlocks e Inanição                                             :noexport:
 
 Implementação de semáforo com fila de espera pode resultar em deadlock
 
@@ -480,7 +576,7 @@ Inanição (/starvation/): processos esperam indefinidamente dentro do semáforo
 
 - Pode ocorrer se a remoção da fila de espera seguir ordem LIFO
 
-* Inversão de Prioridades
+* Inversão de Prioridades                                          :noexport:
 
 Desafio de escalonamento quando processo de alta prioridade precisa de lock
 
@@ -515,11 +611,11 @@ Problemas usados no teste de novos esquemas de sincronização
 
 #+latex: \vfill
 
-- Problema do produtor-consumidor
+- Problema do produtor-consumidor (já vimos)
   - Buffer compartilhado com acesso exclusivo e sincronização de fluxo
-- Problema do jantar dos filósofos
+- _Problema do jantar dos filósofos_
   - Modelagem de competição por recursos exclusivos em número limitado
-- Problema dos leitores e escritores
+- Problema dos leitores e escritores (tema de casa)
   - Múltiplos leitores simultâneos; escritores com acesso exclusivo
 
 #+latex: \vfill
@@ -574,45 +670,39 @@ Tentativa de correção: devolver o garfo esquerdo se o direito não estiver liv
 - Com cinco garfos, dois filósofos podem comer simultaneamente
 
 * O Problema do Jantar dos Filósofos 3/3
-
-Solução livre de deadlock com máximo paralelismo:
-
 #+begin_src C :tangle aula09-filosofos.c
 #define N 5
 #define LEFT  (i + N - 1) % N
 #define RIGHT (i + 1) % N
-#define THINKING 0
-#define HUNGRY   1
-#define EATING   2
+typedef enum { Thinking, Hungry, Eating } Estado;
 typedef int semaphore;
-int state[N];
+Estado state[N] = {0};
 semaphore mutex = 1;
 semaphore s[N]; /* um semaforo por filosofo */
-
 void take_forks(int i) {
-  down(&mutex);
-  state[i] = HUNGRY;
+  wait(&mutex);      /* trava da região crítica: entra */
+  state[i] = Hungry;
   test(i);           /* tenta pegar dois garfos */
-  up(&mutex);
-  down(&s[i]);       /* bloqueia se garfos nao disponiveis */
+  signal(&mutex);    /* trava da região crítica: sai */
+  wait(&s[i]);       /* bloqueia se garfos nao disponiveis */
 }
 void put_forks(int i) {
-  down(&mutex);
-  state[i] = THINKING;
+  wait(&mutex);      /* trava da região crítica: entra */
+  state[i] = Thinking;
   test(LEFT);        /* ve se vizinho esquerdo pode comer */
   test(RIGHT);       /* ve se vizinho direito pode comer */
-  up(&mutex);
+  signal(&mutex);    /* trava da região crítica: sai */
 }
 void test(int i) {
-  if (state[i] == HUNGRY &&
-      state[LEFT] != EATING && state[RIGHT] != EATING) {
-    state[i] = EATING;
-    up(&s[i]);
+  /* se i está faminto e os vizinhos não estão comendo */
+  if (state[i] == Hungry && state[LEFT] != Eating && state[RIGHT] != Eating) {
+    state[i] = Eating;
+    signal(&s[i]);
   }
 }
 #+end_src
 
-* O Problema dos Leitores e Escritores
+* O Problema dos Leitores e Escritores                             :noexport:
 
 Modela acesso a banco de dados com múltiplos leitores e escritores
 
