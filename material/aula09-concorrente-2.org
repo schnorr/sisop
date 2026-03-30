@@ -1,0 +1,564 @@
+# -*- coding: utf-8 -*-
+# -*- mode: org -*-
+#+startup: beamer overview indent
+#+LANGUAGE: pt-br
+#+TAGS: noexport(n)
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+EXPORT_SELECT_TAGS: export
+
+#+Title: Sistemas Operacionais
+#+Subtitle: Semáforos, Mutex e Problemas Clássicos
+#+Author: Prof. Lucas Mello Schnorr (UFRGS)
+#+Date: \copyleft
+
+#+LaTeX_CLASS: beamer
+#+LaTeX_CLASS_OPTIONS: [xcolor=dvipsnames,10pt]
+#+OPTIONS: H:1 num:t toc:nil \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
+#+LATEX_HEADER: \input{org-babel.tex}
+
+* Estrutura da aula
+
+- Mutex
+- Semáforos
+- Problemas clássicos de sincronização
+  - Problema do produtor-consumidor
+  - Problema da inversão de prioridades
+  - Problema do jantar dos filósofos
+  - Problema dos leitores/escritores
+
+* Mutex 1/2
+
+Ferramenta de software mais simples para resolver o problema da seção crítica
+
+#+latex: \vfill
+
+- Processo deve adquirir o lock antes de entrar na seção crítica
+- Processo libera o lock quando sai da seção crítica
+
+#+latex: \vfill
+
+#+begin_src C
+acquire() {
+  while (!available); /* espera em ação (spinlock) */
+  available = false;
+}
+release() {
+  available = true;
+}
+#+end_src
+
+#+latex: \vfill
+
+- =acquire()= e =release()= devem ser executadas atomicamente
+- Principal desvantagem: espera em ação desperdiça ciclos de CPU
+- Spinlocks são úteis quando o lock é mantido por períodos curtos
+
+* Mutex 2/2
+
+Um mutex é uma variável compartilhada: destravado (0) ou travado (≠0)
+
+#+latex: \vfill
+
+#+begin_src C
+mutex_lock:
+    TSL REGISTER,MUTEX  ; copia mutex e atribui 1
+    CMP REGISTER,#0     ; o mutex era zero?
+    JZE ok              ; era zero: mutex livre, retorna
+    CALL thread_yield   ; mutex ocupado: escalone outra thread
+    JMP mutex_lock      ; tente novamente
+ok: RET
+
+mutex_unlock:
+    MOVE MUTEX,#0       ; coloca 0 em mutex
+    RET
+#+end_src
+
+#+latex: \vfill
+
+- =thread_yield= é uma chamada ao escalonador de threads no espaço do usuário
+- =mutex_lock= e =mutex_unlock= não exigem chamadas ao núcleo
+- Threads de usuário sincronizam inteiramente no espaço do usuário
+
+* Semáforos
+
+Um semáforo S é uma variável inteira acessada por duas operações atômicas
+
+#+latex: \vfill
+
+#+begin_src C
+wait(S) {
+  while (S <= 0); /* espera ativa */
+  S--;
+}
+signal(S) {
+  S++;
+}
+#+end_src
+
+#+latex: \vfill
+
+- =wait()= era chamada P (/proberen/, "testar" em holandês)
+- =signal()= era chamada V (/verhogen/, "incrementar" em holandês)
+- Tanenbaum usa os nomes =down= e =up= (generalizações de =sleep= e =wakeup=)
+- Todas as modificações em =wait()= e =signal()= devem ser indivisíveis
+- Um semáforo com valor 0 indica que nenhum sinal de despertar foi salvo
+
+* Uso dos Semáforos
+
+Dois tipos: semáforos de contagem e semáforos binários
+
+#+latex: \vfill
+
+Semáforo de contagem:
+
+- Valor pode variar num domínio irrestrito
+- Controla acesso a recurso com número finito de instâncias
+- Inicializado com o número de recursos disponíveis
+
+#+latex: \vfill
+
+Semáforo binário:
+
+- Valor varia somente entre 0 e 1
+- Comporta-se de modo semelhante ao lock mutex
+
+#+latex: \vfill
+
+Exemplo: garantir que S2 execute somente após S1 (semáforo =synch= init. 0)
+
+#+begin_src C
+// P1:  S1; signal(synch);
+// P2:  wait(synch); S2;
+#+end_src
+
+* Implementação do Semáforo 1/2
+
+Para eliminar a espera em ação, o processo bloqueia a si próprio
+
+- Operação =block()= insere o processo em fila de espera associada ao semáforo
+- Estado do processo é comutado para espera; controle vai ao escalonador
+- Operação =wakeup(P)= reinicia P: do estado de espera para o estado de pronto
+
+#+latex: \vfill
+
+#+begin_src C
+typedef struct {
+  int value;
+  struct process *list;
+} semaphore;
+
+wait(semaphore *S) {
+  S->value--;
+  if (S->value < 0) {
+    adiciona esse processo a S->list;
+    block();
+  }
+}
+signal(semaphore *S) {
+  S->value++;
+  if (S->value <= 0) {
+    remove um processo P de S->list;
+    wakeup(P);
+  }
+}
+#+end_src
+
+* Implementação do Semáforo 2/2
+
+=wait()= e =signal()= devem ser executadas atomicamente
+
+#+latex: \vfill
+
+Em ambiente com um único processador:
+
+- Inibir interrupções durante a execução de =wait()= e =signal()=
+- Sem interrupções, instruções de processos não são intercaladas
+
+#+latex: \vfill
+
+Em ambiente multiprocessador:
+
+- Interrupções devem ser desabilitadas em cada processador
+- Difícil e prejudicial ao desempenho
+- Sistemas SMP usam técnicas alternativas: =compare_and_swap()= ou spinlocks
+
+#+latex: \vfill
+
+- A espera em ação não foi eliminada, apenas movida para as seções de =wait()= e =signal()=
+- Essas seções são curtas (cerca de dez instruções)
+- Muito diferente de seções críticas longas (minutos ou horas)
+
+* Mutex e Semáforos em Pthreads
+
+Variáveis de condição e mutexes são sempre usados juntos
+
+- Uma thread trava um mutex e espera em uma variável condicional
+- Outra thread sinaliza e a primeira pode continuar
+- =pthread_cond_wait= destrava atomicamente o mutex que está segurando
+
+#+latex: \vfill
+
+Variáveis de condição não têm memória (diferentemente de semáforos)
+
+- Se um sinal é enviado sem thread esperando, o sinal é perdido
+- Programadores devem ser cuidadosos para não perder sinais
+
+#+latex: \vfill
+
+Semáforos são usados de duas maneiras distintas no produtor-consumidor:
+
+- Exclusão mútua: =mutex= garante que apenas um processo acessa o buffer
+- Sincronização: =full= e =empty= garantem sequências de execução corretas
+
+* Resolvendo o Problema do Dormir e Acordar
+
+Semáforos solucionam o problema do sinal de despertar perdido
+
+#+latex: \vfill
+
+#+begin_src C
+#define N 100
+typedef int semaphore;
+semaphore mutex = 1; /* controla acesso a regiao critica */
+semaphore empty = N; /* conta lugares vazios no buffer */
+semaphore full  = 0; /* conta lugares preenchidos */
+
+void producer(void) {
+  int item;
+  while (TRUE) {
+    item = produce_item();
+    wait(&empty);       /* decresce contador empty */
+    wait(&mutex);       /* entra na regiao critica */
+    insert_item(item);
+    signal(&mutex);     /* sai da regiao critica */
+    signal(&full);      /* incrementa lugares preenchidos */
+  }
+}
+void consumer(void) {
+  int item;
+  while (TRUE) {
+    wait(&full);        /* decresce contador full */
+    wait(&mutex);       /* entra na regiao critica */
+    item = remove_item();
+    signal(&mutex);     /* sai da regiao critica */
+    signal(&empty);     /* incrementa lugares vazios */
+    consume_item(item);
+  }
+}
+#+end_src
+
+* Mutex em Pthreads
+
+Pthreads proporcionam funções para sincronizar threads via mutex
+
+- Uma thread trava o mutex para entrar na região crítica
+- Se o mutex já estiver travado, a thread que chamou é bloqueada
+- Quando desbloqueado, apenas um dos threads esperando é autorizado a continuar
+
+#+latex: \vfill
+
+| Chamada de thread       | Descrição                      |
+|-------------------------+--------------------------------|
+| =pthread_mutex_init=      | Cria um mutex                  |
+| =pthread_mutex_destroy=   | Destrói um mutex existente     |
+| =pthread_mutex_lock=      | Obtém uma trava ou é bloqueado |
+| =pthread_mutex_trylock=   | Obtém uma trava ou falha       |
+| =pthread_mutex_unlock=    | Libera uma trava               |
+
+#+latex: \vfill
+
+- =pthread_mutex_trylock=: permite espera ocupada quando necessário
+- Mutexes podem ter atributos para fins especializados
+- As travas não são obrigatórias; cabe ao programador usá-las corretamente
+
+* Variáveis de Condição em Pthreads
+
+Pthreads oferecem variáveis de condição além dos mutexes
+
+- Mutexes: permitem ou bloqueiam acesso à região crítica
+- Variáveis de condição: bloqueiam threads quando uma condição não é atendida
+
+#+latex: \vfill
+
+| Chamada de thread        | Descrição                                             |
+|--------------------------+-------------------------------------------------------|
+| =pthread_cond_init=        | Cria uma variável de condição                         |
+| =pthread_cond_destroy=     | Destrói uma variável de condição                      |
+| =pthread_cond_wait=        | É bloqueado esperando por um sinal                    |
+| =pthread_cond_signal=      | Sinaliza para outra thread e a desperta               |
+| =pthread_cond_broadcast=   | Sinaliza para múltiplas threads e desperta todas      |
+
+#+latex: \vfill
+
+- =pthread_cond_wait= bloqueia atomicamente liberando o mutex
+- =pthread_cond_broadcast= usada quando múltiplas threads esperam pelo mesmo sinal
+- O comando que coloca a thread para dormir deve checar a condição novamente ao acordar
+
+* Exemplo de Produtor-Consumidor com Pthreads
+
+#+begin_src C
+#include <pthread.h>
+#define MAX 1000000000
+pthread_mutex_t the_mutex;
+pthread_cond_t condc, condp;
+int buffer = 0;
+
+void *producer(void *ptr) {
+  int i;
+  for (i = 1; i <= MAX; i++) {
+    pthread_mutex_lock(&the_mutex);
+    while (buffer != 0) pthread_cond_wait(&condp, &the_mutex);
+    buffer = i;
+    pthread_cond_signal(&condc);
+    pthread_mutex_unlock(&the_mutex);
+  }
+  pthread_exit(0);
+}
+void *consumer(void *ptr) {
+  int i;
+  for (i = 1; i <= MAX; i++) {
+    pthread_mutex_lock(&the_mutex);
+    while (buffer == 0) pthread_cond_wait(&condc, &the_mutex);
+    buffer = 0;
+    pthread_cond_signal(&condp);
+    pthread_mutex_unlock(&the_mutex);
+  }
+  pthread_exit(0);
+}
+#+end_src
+
+* Problemas com Semáforos e Mutexes
+
+A ordem das operações com semáforos é crítica
+
+#+latex: \vfill
+
+Exemplo: se no produtor =wait(&mutex)= vier antes de =wait(&empty)=
+
+- Se o buffer estiver cheio, produtor bloqueia com =mutex = 0=
+- Consumidor tenta =wait(&mutex)= e também bloqueia
+- Ambos ficam bloqueados para sempre: impasse (deadlock)
+
+#+latex: \vfill
+
+- Erros com semáforos são como programar em linguagem de montagem, mas piores
+- Os erros são condições de corrida, impasses e comportamentos irreproduzíveis
+
+#+latex: \vfill
+
+Proposta de Brinch Hansen e Hoare: monitores
+
+- Coleção de rotinas, variáveis e estruturas de dados em módulo especial
+- Apenas um processo pode estar ativo num monitor em qualquer instante
+- O compilador implementa a exclusão mútua: menos propenso a erros
+
+* Deadlocks e Inanição
+
+Implementação de semáforo com fila de espera pode resultar em deadlock
+
+#+latex: \vfill
+
+Exemplo com dois processos (=S= e =Q= inicializados com 1):
+
+#+begin_src C
+// P0:  wait(S); wait(Q); ... signal(S); signal(Q);
+// P1:  wait(Q); wait(S); ... signal(Q); signal(S);
+#+end_src
+
+- P0 executa =wait(S)=, P1 executa =wait(Q)=
+- P0 espera por =signal(Q)= de P1; P1 espera por =signal(S)= de P0
+- Nenhum sinal pode ser executado: deadlock
+
+#+latex: \vfill
+
+Um conjunto de processos está em deadlock quando cada um espera por evento
+
+- que só pode ser causado por outro processo do mesmo conjunto
+
+#+latex: \vfill
+
+Inanição (/starvation/): processos esperam indefinidamente dentro do semáforo
+
+- Pode ocorrer se a remoção da fila de espera seguir ordem LIFO
+
+* Inversão de Prioridades
+
+Desafio de escalonamento quando processo de alta prioridade precisa de lock
+
+#+latex: \vfill
+
+Exemplo com três processos (prioridade L < M < H):
+
+- H precisa do recurso R, que está sendo usado por L
+- M torna-se executável e causa preempção de L
+- H fica aguardando, indiretamente bloqueado por M (prioridade menor)
+
+#+latex: \vfill
+
+Solução: protocolo de herança de prioridades
+
+- L herda temporariamente a prioridade de H enquanto usa R
+- M não consegue causar preempção de L (mesma prioridade de H)
+- Ao liberar R, L retorna à sua prioridade original
+- H executa imediatamente após a liberação
+
+#+latex: \vfill
+
+Caso real: Mars Pathfinder (1997)
+
+- Tarefa de alta prioridade =bc_dist= bloqueada por =ASI/MET= (baixa prioridade)
+- =ASI/MET= sofria preempção por tarefas de prioridade média
+- Solução: habilitar herança de prioridades nos semáforos do VxWorks
+
+* Problemas Clássicos de Sincronização
+
+Problemas usados no teste de novos esquemas de sincronização
+
+#+latex: \vfill
+
+- Problema do produtor-consumidor
+  - Buffer compartilhado com acesso exclusivo e sincronização de fluxo
+- Problema do jantar dos filósofos
+  - Modelagem de competição por recursos exclusivos em número limitado
+- Problema dos leitores e escritores
+  - Múltiplos leitores simultâneos; escritores com acesso exclusivo
+
+#+latex: \vfill
+
+- Soluções apresentadas usando semáforos (abordagem tradicional)
+- Implementações reais podem usar locks mutex em vez de semáforos binários
+
+* O Problema do Jantar dos Filósofos 1/3
+
+Cinco filósofos sentados em torno de uma mesa circular com espaguete
+
+- Cada filósofo precisa de dois garfos para comer
+- Entre cada par de pratos há um garfo (cinco garfos no total)
+- A vida de um filósofo: alternar períodos de alimentação e pensamento
+
+#+latex: \vfill
+
+Solução ingênua — contém deadlock:
+
+#+begin_src C
+#define N 5
+void philosopher(int i) {
+  while (TRUE) {
+    think();
+    take_fork(i);           /* pega o garfo esquerdo */
+    take_fork((i+1) % N);  /* pega o garfo direito */
+    eat();
+    put_fork(i);
+    put_fork((i+1) % N);
+  }
+}
+#+end_src
+
+- Se todos pegam o garfo esquerdo simultaneamente, ninguém pega o direito
+
+* O Problema do Jantar dos Filósofos 2/3
+
+Tentativa de correção: devolver o garfo esquerdo se o direito não estiver livre
+
+#+latex: \vfill
+
+- Ainda pode falhar: todos pegam, devolvem e repetem indefinidamente
+- Situação em que todos executam mas nenhum progride: inanição (/starvation/)
+
+#+latex: \vfill
+
+Tentativa com semáforo binário global:
+
+- Antes de pegar garfos, filósofo faz =wait(&mutex)=; ao largar, =signal(&mutex)=
+- Solução correta do ponto de vista teórico
+- Problema de desempenho: apenas um filósofo pode comer por vez
+- Com cinco garfos, deveríamos permitir dois filósofos comendo simultaneamente
+
+* O Problema do Jantar dos Filósofos 3/3
+
+Solução livre de deadlock com máximo paralelismo:
+
+#+begin_src C
+#define N 5
+#define LEFT  (i + N - 1) % N
+#define RIGHT (i + 1) % N
+#define THINKING 0
+#define HUNGRY   1
+#define EATING   2
+typedef int semaphore;
+int state[N];
+semaphore mutex = 1;
+semaphore s[N]; /* um semaforo por filosofo */
+
+void take_forks(int i) {
+  down(&mutex);
+  state[i] = HUNGRY;
+  test(i);           /* tenta pegar dois garfos */
+  up(&mutex);
+  down(&s[i]);       /* bloqueia se garfos nao disponiveis */
+}
+void put_forks(int i) {
+  down(&mutex);
+  state[i] = THINKING;
+  test(LEFT);        /* ve se vizinho esquerdo pode comer */
+  test(RIGHT);       /* ve se vizinho direito pode comer */
+  up(&mutex);
+}
+void test(int i) {
+  if (state[i] == HUNGRY &&
+      state[LEFT] != EATING && state[RIGHT] != EATING) {
+    state[i] = EATING;
+    up(&s[i]);
+  }
+}
+#+end_src
+
+* O Problema dos Leitores e Escritores
+
+Modela acesso a banco de dados com múltiplos leitores e escritores
+
+- Múltiplos processos podem ler simultaneamente
+- Escritor precisa de acesso exclusivo (nem leitores, nem outros escritores)
+
+#+latex: \vfill
+
+#+begin_src C
+typedef int semaphore;
+semaphore mutex = 1; /* controla acesso a 'rc' */
+semaphore db    = 1; /* controla acesso a base de dados */
+int rc = 0;          /* numero de leitores ativos */
+
+void reader(void) {
+  while (TRUE) {
+    down(&mutex); rc++; if (rc == 1) down(&db); up(&mutex);
+    read_data_base();
+    down(&mutex); rc--; if (rc == 0) up(&db);   up(&mutex);
+    use_data_read();
+  }
+}
+void writer(void) {
+  while (TRUE) {
+    think_up_data();
+    down(&db);
+    write_data_base();
+    up(&db);
+  }
+}
+#+end_src
+
+- O primeiro leitor bloqueia escritores; o último libera
+- Problema: leitores contínuos podem causar inanição do escritor
+
+* Referências
+
+Silberschatz, Galvin & Gagne — /Fund. de Sistemas Operacionais/ (9ª ed.)
+
+- Capítulo 5, Seções 5.5, 5.6, 5.7
+- Mutex, semáforos (uso e implementação), deadlock, inanição, inversão de prioridades
+
+#+latex: \vfill
+
+Tanenbaum & Bos — /Sistemas Operacionais Modernos/ (4ª ed.)
+
+- Capítulo 2, Seções 2.3.4–2.3.7; 2.5.1, 2.5.2
+- Mutex, semáforos, Pthreads, jantar dos filósofos, leitores e escritores
