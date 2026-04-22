@@ -316,7 +316,7 @@ Memória de retaguarda: disco veloz para armazenar imagens de memória
 
 - Custo alto:
   - Processo de 100 MB, disco a 50 MB/s → 2 s para transferir
-  - Remoção + inserção → ~4.000 ms no total
+  - Remoção + inserção → \approx4s no total
 
 #+latex: \vfill
 
@@ -333,7 +333,7 @@ Permuta-padrão não usada em SO modernos
 
 Compactação de memória: mover processos para unir espaços livres
 
-- Custo muito alto: máquina de 16 GB → ~16 s para compactar a memória
+- Custo muito alto: máquina de 16 GB → \approx16 s para compactar a memória
 
 * Troca de Processos em Sistemas Móveis                            :noexport:
 
