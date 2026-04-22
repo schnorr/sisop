@@ -24,11 +24,11 @@
     - Despachante e troca de contexto
   - Particionamento da memória
     - Particionamento estático
-    - Particionamento dinâmico — brechas
+    - Particionamento dinâmico (brechas)
     - Estratégias: primeiro-apto, mais-apto, menos-apto
   - Fragmentação
-    - Fragmentação externa — regra dos 50%
-    - Fragmentação interna — compactação
+    - Fragmentação externa (regra dos 50%)
+    - Fragmentação interna (compactação)
 - Gerenciando a memória livre
   - Mapa de bits
   - Lista encadeada e algoritmos de alocação
@@ -56,7 +56,7 @@ Memória deve acomodar SO e processos de usuário simultaneamente
 
 ** Left                                                              :BMCOL:
 :PROPERTIES:
-:BEAMER_col: 0.58
+:BEAMER_col: 0.53
 :END:
 
 - Registrador de relocação: menor endereço físico do processo
@@ -67,7 +67,7 @@ Memória deve acomodar SO e processos de usuário simultaneamente
 
 ** Right                                                             :BMCOL:
 :PROPERTIES:
-:BEAMER_col: 0.38
+:BEAMER_col: 0.45
 :END:
 
 [[./img/S_fig8.6.png]]
@@ -80,6 +80,8 @@ Memória deve acomodar SO e processos de usuário simultaneamente
 
 #+latex: \vfill
 
+
+** Código do SO
 - Esquema permite que tamanho do SO mude dinamicamente
   - Drivers de dispositivos nem sempre precisam estar em memória
   - Partes carregadas somente quando necessárias
@@ -95,28 +97,29 @@ Memória deve acomodar SO e processos de usuário simultaneamente
 
 - Quando partição está livre, processo da fila de entrada é carregado
 - Quando processo termina, partição torna-se disponível
-- Método histórico: IBM OS/360 (chamado MFT)
+- Método histórico: IBM OS/360
+  - MFT == /Multiprogramming with a Fixed number of Tasks/
 - Problema: tamanhos diferentes de processos → desperdício de memória
 
 * Particionamento Dinâmico: Brechas
 
-- Partições variáveis (MVT): generalização das partições fixas
+- Partições variáveis: generalização das partições fixas
+  - MVT  == /Multiprogramming with a Variable number of Tasks/
 - SO mantém tabela indicando partes disponíveis e ocupadas
-- Inicialmente toda memória disponível = um grande bloco: uma brecha
+- Inicialmente toda memória disponível: um grande bloco, uma brecha
 
-#+latex: \vfill
+#+latex: \pause
 
-- Com o tempo, memória contém brechas de vários tamanhos
-- Brechas: espaços livres espalhados pela memória
-
-* Particionamento Dinâmico: Carregamento de Processos
+** Carregamento de Processos
 
 - Processos entram no sistema e vão para a fila de entrada
 - SO considera requisitos de memória e memória disponível
 - Processo que recebe espaço é carregado e compete por CPU
 - Processo que termina libera memória → SO preenche com outro da fila
 
-#+latex: \vfill
+#+latex: \vfill\pause
+
+** Detalhes de funcionamento
 
 - SO mantém lista de brechas e fila de entrada
 - Fila de entrada pode ser ordenada por algoritmo de escalonamento
@@ -125,16 +128,22 @@ Memória deve acomodar SO e processos de usuário simultaneamente
 
 * Particionamento Dinâmico: Divisão e Fusão de Brechas
 
+** Problema
+- Com o tempo, memória contém brechas de vários tamanhos
+  - Brechas: espaços livres espalhados pela memória
+- Processos e brechas alternam-se na memória ao longo do tempo    
+
+** Lidando com as brechas
 - Ao alocar: brecha grande demais é dividida em duas partes
   - Uma parte alocada ao processo; outra devolvida ao conjunto
 - Ao liberar: bloco retorna ao conjunto de brechas
   - Brechas adjacentes são fundidas em uma brecha maior
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-- Processos e brechas alternam-se na memória ao longo do tempo
+** Resolvendo o problema
+
 - Fusão é essencial para evitar fragmentação progressiva
-- SO verifica vizinhos ao liberar: mescla brechas contíguas
 
 * Estratégias de Alocação
 
@@ -220,12 +229,16 @@ Dado pedido de tamanho n, escolher brecha a partir da lista de brechas
 - Quando memória é alocada dinamicamente, SO precisa rastreá-la
 - Duas abordagens principais para controlar o uso da memória:
 
+#+attr_latex: :width \linewidth
+[[./img/T_fig3.6a.png]]
+
 #+latex: \vfill
 
-- Mapa de bits
+** Mapa de bits
   - Divide memória em unidades de alocação
   - Um bit por unidade: 0 = livre, 1 = ocupada
-- Lista encadeada
+
+** Lista encadeada
   - Entradas: tipo (P=processo, L=livre), endereço, comprimento
   - Algoritmos: /first fit/, /next fit/, /best fit/, /worst fit/
 
@@ -233,6 +246,9 @@ Dado pedido de tamanho n, escolher brecha a partir da lista de brechas
 
 - Memória dividida em unidades de alocação (palavras a quilobytes)
 - Um bit por unidade: 0 = livre, 1 = ocupada
+
+#+attr_latex: :width .8\linewidth
+[[./img/T_fig3.6a-b.png]]
 
 #+latex: \vfill
 
@@ -249,6 +265,9 @@ Dado pedido de tamanho n, escolher brecha a partir da lista de brechas
 
 - Lista encadeada de segmentos: espaços livres e segmentos alocados
 - Cada entrada: tipo (P ou L), endereço inicial, comprimento, ponteiro
+
+#+attr_latex: :width .8\linewidth
+[[./img/T_fig3.6.png]]
 
 #+latex: \vfill
 
