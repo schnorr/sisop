@@ -1,0 +1,310 @@
+# -*- coding: utf-8 -*-
+# -*- mode: org -*-
+#+startup: beamer overview indent
+#+LANGUAGE: pt-br
+#+TAGS: noexport(n)
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+EXPORT_SELECT_TAGS: export
+
+#+Title: Sistemas Operacionais
+#+Subtitle: Paginação: Princípios e Implementação
+#+Author: Prof. Lucas Mello Schnorr (UFRGS)
+#+Date: \copyleft
+
+#+LaTeX_CLASS: beamer
+#+LaTeX_CLASS_OPTIONS: [xcolor=dvipsnames,10pt]
+#+OPTIONS: H:1 num:t toc:nil \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
+#+LATEX_HEADER: \input{org-babel.tex}
+
+* Estrutura da aula
+
+- Motivação: paginação
+  - Problema da fragmentação externa
+  - Solução: blocos de tamanho fixo
+- Conceito de paginação
+  - Páginas e quadros
+  - Endereço lógico: número de página + deslocamento
+  - Tabela de páginas: mapeamento página → quadro
+- TLB: Translation Lookaside Buffer
+  - Implementação da tabela de páginas
+  - Memória principal e PTBR
+
+* Motivação: Paginação
+
+Paginação é solução para a fragmentação externa
+
+- Esquemas contíguos sofriam com fragmentação externa
+- Memória de retaguarda também sofria com fragmentação
+- Compactação em disco é impossível: acesso muito mais lento
+
+#+latex: \vfill
+
+- Paginação evita fragmentação externa e necessidade de compactação
+- Resolve acomodação de trechos de memória de vários tamanhos
+- Usada na maioria dos SOs: de mainframes a smartphones
+- Implementada pela cooperação entre SO e hardware do computador
+
+* Conceito: Páginas e Quadros
+
+- Memória física fragmentada em blocos de tamanho fixo: quadros
+- Memória lógica fragmentada em blocos do mesmo tamanho: páginas
+
+#+latex: \vfill
+
+- Ao executar: páginas carregadas em quaisquer quadros disponíveis
+- Espaço de endereçamento lógico totalmente separado do físico
+
+#+latex: \vfill
+
+- Tamanho de página definido pelo hardware; sempre potência de 2
+- Exemplos: 512 bytes a 1 GB; tipicamente 4 KB a 8 KB
+  #+begin_src bash
+  getconf PAGESIZE
+  cat /proc/self/smaps | grep KernelPageSize | head -n 1
+  #+end_src
+
+* Endereços: Número de Página e Deslocamento
+
+Cada endereço lógico gerado pela CPU tem duas partes
+
+- Número de página (p): índice na tabela de páginas
+- Deslocamento de página (d): posição dentro da página
+
+#+latex: \vfill
+
+Endereço lógico de m bits com página de $2^n$ bytes:
+
+- Bits de alta ordem (m - n bits): número de página
+- Bits de baixa ordem (n bits): deslocamento
+- Potência de 2 facilita extração dos campos por mascaramento de bits
+
+* Tabela de Páginas: Mapeamento
+
+- Tabela de páginas armazena o número do quadro de cada página
+- Número de página → índice na tabela → número do quadro
+- Número do quadro concatenado com deslocamento → endereço físico
+
+#+latex: \vfill
+
+- Matematicamente: tabela é função de página → quadro físico
+- Mapeamento controlado pelo SO; oculto do programador
+
+* Exemplo de Mapeamento
+
+Páginas de 4 bytes; espaço lógico: 4 páginas; memória: 8 quadros
+
+#+latex: \vfill
+
+** Entradas na tabela de páginas
+- Página 0 → quadro 5; página 1 → quadro 6
+
+** Tradução de endereços lógicos
+- Endereço 0 (pág 0, desl 0) → físico 20 = (5 × 4) + 0
+- Endereço 3 (pág 0, desl 3) → físico 23 = (5 × 4) + 3
+- Endereço 4 (pág 1, desl 0) → físico 24 = (6 × 4) + 0
+
+* Alocação de Quadros e Tabela de Quadros
+
+- Tamanho do processo medido em páginas na chegada ao sistema
+- Cada página do processo precisa de um quadro disponível
+- n páginas → n quadros alocados; número do quadro vai para a tabela
+
+#+latex: \vfill
+
+** Tabela de quadros (gerida pelo SO)
+- Uma entrada por quadro físico: livre ou alocado
+- Se alocado: indica a qual processo e a qual página pertence
+
+* Fragmentação Interna na Paginação
+
+- Paginação elimina a fragmentação externa
+  - Qualquer quadro livre pode ser alocado a qualquer processo
+
+#+latex: \vfill
+
+- Porém, o último quadro alocado pode não ficar completamente cheio
+  - Página de 2.048 bytes; processo de 72.766 bytes
+  - 35 páginas inteiras + 1.086 bytes → recebe 36 quadros
+  - Fragmentação interna = 2.048 - 1.086 = 962 bytes
+- Na pior hipótese: quase um quadro inteiro desperdiçado
+- Em média: meia página de fragmentação interna por processo
+
+#+latex: \vfill
+
+- Tamanhos de página típicos: 4 KB a 8 KB
+
+* Visão do Programador vs. Memória Física
+
+- Programador vê memória como espaço único e contíguo
+- Na realidade, processo está disperso pela memória física
+- Diferença reconciliada pelo hardware de tradução de endereços
+
+#+latex: \vfill
+
+- Mapeamento oculto do programador; controlado pelo SO
+- Processo não pode endereçar memória fora de sua tabela de páginas
+
+#+latex: \vfill
+
+- SO mantém cópia da tabela de páginas de cada processo
+  - Usada para tradução manual de endereços quando necessário
+  - Paginação aumenta o tempo de mudança de contexto
+
+* Estrutura de uma Entrada da Tabela de Páginas
+
+- Tamanho típico de uma entrada: 32 bits
+
+#+latex: \vfill
+
+- Número do quadro de página: campo principal da entrada
+- Bit válido-inválido: indica se a página está no espaço lógico
+  - Inválido: acesso interceptado pelo SO
+- Bits de proteção: definem permissões (leitura, escrita, execução)
+  - Verificados durante a tradução do endereço
+- Bit modificada: página foi escrita desde que foi carregada
+- Bit referenciada: página foi acessada (leitura ou escrita)
+
+* Compartilhamento de Páginas
+
+- Paginação permite compartilhamento de código entre processos
+- Código reentrante: nunca se modifica durante a execução
+
+#+latex: \vfill
+
+- Exemplo: 40 usuários com mesmo editor (150 KB código + 50 KB dados)
+  - Sem compartilhamento: 40 × 200 KB = 8.000 KB
+  - Com compartilhamento: 150 KB + 40 × 50 KB = 2.150 KB
+
+#+latex: \vfill
+
+- Cada processo: tabela de páginas aponta para código compartilhado
+- Páginas de dados mapeadas em quadros distintos por processo
+- Compiladores, bibliotecas e janelas também podem ser compartilhados
+
+* TLB: Translation Lookaside Buffer
+
+- Tabela de páginas fica na *memória principal* — acesso custoso
+- A cada referência de memória: uma tradução VA → PA é necessária
+- Sem cache de traduções: desempenho cai à metade (ou pior)
+
+#+latex: \vfill  
+
+A cada referência a memória pela CPU
+- CPU → endereço virtual → tabela de páginas (RAM) → endereço
+  físico → RAM (acesso extra à memória a cada instrução)
+
+#+latex: \vfill\pause
+
+** Solução: TLB
+
+Cache de traduções recentes *dentro da MMU*, com acesso em \approx1 ciclo
+- Presente em todas as CPUs modernas (a solução definitiva)
+
+#+begin_quote
+A TLB é o que torna a paginação *praticável* em termos de desempenho.
+#+end_quote
+
+* TLB: Acerto (hit) e Omissão (miss)
+** TLB: Funcionamento | CPU → endereço virtual
+- → TLB hit  → endereço físico → RAM   (rápido)
+  - Hit significa que encontramos a tradução do endereço virtual
+- → TLB miss → tabela de páginas → TLB atualizada
+  - Miss significa que não encontramos a tradução do endereço virtual
+    - Temos que consultar a Tabela de Páginas em RAM (lento)
+
+** Acerto na TLB (TLB /hit/)
+- Número de página encontrado na TLB
+- Número do quadro imediatamente disponível
+- Acesso à memória sem custo adicional de tradução
+
+** Omissão na TLB (/TLB miss/)
+- Número de página não encontrado na TLB
+- Referência à tabela de páginas em memória necessária
+- Par (página, quadro) inserido na TLB para uso futuro
+- Tratamento por hardware (CISC) ou pelo SO (RISC)
+
+* TLB: Por Que Funciona
+
+#+latex: \vfill
+
+** Princípio da Localidade
+
+- *Temporal*: página acessada agora tende a ser acessada em breve
+- *Espacial*: páginas vizinhas tendem a ser acessadas na sequência
+
+#+latex: \vfill\pause
+
+** Na prática
+
+- TLBs modernas têm *hit rate > 99%*
+- 16 a 512 entradas são suficientes para cobrir o working set típico
+- Miss: hardware percorre a tabela (*page table walk*)
+  - múltiplos acessos à RAM
+
+* TLB: Troca de Contexto
+
+#+latex: \vfill
+
+Ao trocar de processo, as entradas da TLB do processo anterior são *inválidas*
+
+#+latex: \vfill\pause
+
+** Duas abordagens
+
+1. Flush Total
+   - Mecanismo: Invalida todas as entradas na troca
+   - Custo: Alto — TLB "fria"
+2. ASID (/Address Space Identifier/)
+   - permite que múltiplos processos coexistam na TLB simultaneamente sem conflito
+   - Mecanismo: Cada entrada carrega o ID do espaço de endereçamento
+   - Custo: Baixo — entradas coexistem
+
+* TLB: Substituição
+
+- Quando TLB está cheia: entrada existente deve ser substituída
+  - TLB tem um tamanho máximo (é em hardware)
+- Políticas: LRU, round-robin, aleatória
+- Entradas protegidas (ex: código do kernel) não são removidas
+ 
+* TLB: Gerenciamento e Tipos de Miss
+
+** Gerenciamento por software (MIPS, SPARC)
+- Miss gera *trap* → SO carrega a entrada manualmente
+- MMU mais simples → mais área de chip para caches
+
+#+latex: \vfill\pause
+
+** Tipos de miss
+
+| Tipo      | Situação                     | Custo típico       |
+|-----------+------------------------------+--------------------|
+| *Soft miss* | Página na RAM, fora da TLB   | 10 -- 100 ciclos   |
+| *Hard miss* | Página no disco (page fault) | 1 -- 10 ms (\approx10⁶\times) |
+
+#+latex: \vfill\pause
+
+\to Hard miss é *até um milhão de vezes* mais lento que um hit na TLB
+
+* Resumo: Paginação e Hardware
+
+Duas questões fundamentais em qualquer sistema de paginação:
+
+- Mapeamento virtual → físico precisa ser rápido
+  - Ocorre em cada referência de memória (instruções e dados)
+- Tabelas de páginas podem ser muito grandes
+  - Espaço de 32 bits com páginas de 4 KB → 1 milhão de entradas
+
+#+latex: \vfill
+
+- CPUs modernas têm múltiplos níveis de TLB (L1, L2)
+  - Intel Core i7: TLB L1 com 128 (instrução) e 64 (dados) entradas
+  - Erro em L1 → TLB L2 com 512 entradas (6 ciclos)
+  - Erro em L2 → percorrer tabela de páginas em memória
+- Projeto do SO deve se adaptar ao projeto de TLB da plataforma
+
+* Referências
+
+- Silberchatz
+  - Cap. 8, Secs. 8.5 e 8.5.2
+- Tanenbaum
+  - Cap. 3, Secs. 3.3, 3.3.1, 3.3.2 e 3.3.3
