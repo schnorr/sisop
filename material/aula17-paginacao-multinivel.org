@@ -191,13 +191,16 @@ Exemplo: compilador com cinco tabelas crescendo continuamente
 - Em espaço único: uma tabela pode "invadir" a outra
 - Programador precisa gerenciar manualmente o crescimento das tabelas
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-Solução: múltiplos espaços de endereçamento independentes
+** Solução: múltiplos espaços de endereçamento independentes
 
 - Cada espaço independente é chamado de segmento
-- Segmentos crescem e encolhem sem afetar uns aos outros
+  - Segmentos crescem e encolhem sem afetar uns aos outros
 - Programador refere-se a estruturas pelo nome, não por endereço
+
+#+attr_latex: :width .5\linewidth
+[[./img/T_fig3.31.png]]
 
 * Segmentação: Conceito
 
@@ -252,27 +255,23 @@ A tabela de segmentos é um array de pares base-limite
 :END:
 
 #+attr_latex: :width \linewidth
-[[./img/S_fig8.6.png]]
+[[./img/S_fig8.8.png]]
 
 * Segmentação Pura: Implementação
 
 Diferença fundamental em relação à paginação
-
 - Páginas têm tamanho fixo; segmentos têm tamanho variável
 - Segmentos podem ser carregados em qualquer posição livre
 
 #+latex: \vfill
 
 Problema: fragmentação externa (/checker boarding/)
+#+attr_latex: :width .6\linewidth
+[[./img/T_fig3.33.png]]
 
-- Após execução por algum tempo, memória contém lacunas espalhadas
-- Segmentos e lacunas alternam-se na memória
-- Remoção de um segmento e inserção de outro menor cria lacuna
-- Memória desperdiçada nas lacunas entre os segmentos
+#+latex: \vfill\pause
 
-#+latex: \vfill
-
-Solução: compactação
+** Solução: compactação
 
 - Mover todos os segmentos para um lado; juntar lacunas
 - Custo elevado: exige mover grandes blocos de memória
@@ -318,7 +317,7 @@ Endereço MULTICS de 34 bits:
 - Tabela de segmentos → tabela de páginas do segmento → página
 - TLB de 16 entradas pesquisadas em paralelo — primeiro TLB da história
 
-* Proteção e Compartilhamento
+* Proteção e Compartilhamento                                      :noexport:
 
 Proteção por bits associados a cada entrada da tabela de páginas
 
