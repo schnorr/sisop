@@ -1,0 +1,426 @@
+# -*- coding: utf-8 -*-
+# -*- mode: org -*-
+#+startup: beamer overview indent
+#+LANGUAGE: pt-br
+#+TAGS: noexport(n)
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+EXPORT_SELECT_TAGS: export
+
+#+Title: Sistemas Operacionais
+#+Subtitle: Memória Virtual e Paginação sob Demanda
+#+Author: Prof. Lucas Mello Schnorr (UFRGS)
+#+Date: \copyleft
+
+#+LaTeX_CLASS: beamer
+#+LaTeX_CLASS_OPTIONS: [xcolor=dvipsnames,10pt]
+#+OPTIONS: H:1 num:t toc:nil \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
+#+LATEX_HEADER: \input{org-babel.tex}
+
+* Estrutura da aula
+
+- Motivação: Memória Virtual
+  - O problema do tamanho dos programas
+  - Conceito e benefícios
+  - Espaço de endereçamento virtual
+  - Localidade de referência
+- Paginação sob Demanda
+  - Conceito e paginador preguiçoso
+  - Hardware de suporte: bit de validade
+- Falta de Página
+  - Tratamento: sequência de passos
+  - Desempenho: tempo de acesso efetivo
+- Cópia na Escrita (/copy-on-write/)
+- Envolvimento do SO com paginação
+- Tratamento de falta de página: detalhes
+- Armazenamento de apoio
+
+* Motivação: Memória Virtual
+
+O problema: programas maiores que a memória física disponível
+
+- Windows 8 (64 bits) recomenda mínimo de 2 GB de memória
+- Tendências multimídia aumentam cada vez mais a demanda por memória
+- Permuta de processos não é atraente (1 GB a centenas de MB/s = segundos)
+
+#+latex: \vfill
+
+Solução histórica: sobreposições (/overlays/)
+
+- Programador dividia manualmente o programa em módulos (sobreposições)
+- Módulos mantidos no disco; carregados e removidos pelo gerenciador
+- Trabalho manual, tedioso e propenso a erros
+
+#+latex: \vfill
+
+- Solução moderna: memória virtual (Fotheringham, 1961)
+- Ideia: dividir o espaço de endereçamento em páginas
+- Mapear páginas na memória física — nem todas precisam estar lá
+
+* Memória Virtual: Conceito
+
+Cada programa tem seu próprio espaço de endereçamento dividido em páginas
+
+- Páginas são séries contíguas de endereços no espaço virtual
+- Mapeadas na memória física, mas nem todas precisam estar nela
+
+#+latex: \vfill
+
+- Referência a página presente: hardware realiza mapeamento rapidamente
+- Referência a página ausente: SO busca a parte que falta no disco
+- SO reexecuta a instrução que falhou após carregar a página
+
+#+latex: \vfill
+
+- Memória virtual é generalização do registrador base e registrador limite
+  - Em vez de realocação de texto e dados: todo o espaço de endereçamento
+  - Espaço mapeado na memória física em unidades pequenas (páginas)
+- Funciona bem com multiprogramação: CPU cedida a outro processo durante leitura
+
+* Benefícios da Memória Virtual
+
+Separação entre memória lógica (virtual) e memória física
+
+#+latex: \vfill
+
+- Programa não fica restrito ao tamanho da memória física disponível
+  - Espaço de endereçamento virtual pode ser extremamente grande
+- Mais programas executados simultaneamente
+  - Cada processo usa menos memória física → maior utilização da CPU
+- Menos operações de E/S para carregar ou permutar programas
+  - Cada programa de usuário é executado mais rapidamente
+
+#+latex: \vfill
+
+Compartilhamento de páginas via memória virtual
+
+- Bibliotecas do sistema compartilhadas por vários processos
+  - Mapeadas como somente leitura no espaço de cada processo
+- Processos podem compartilhar regiões de memória explicitamente
+- Criação de processos acelerada: fork() compartilha páginas do pai
+
+* Espaço de Endereçamento Virtual
+
+O espaço de endereçamento virtual reflete a visão lógica do processo
+
+#+latex: \vfill
+
+- Processo começa no endereço lógico 0
+- Heap cresce para cima conforme alocação dinâmica
+- Pilha cresce para baixo em chamadas de função
+- Grande brecha entre heap e pilha: espaço esparso
+
+#+latex: \vfill
+
+- Brecha não precisa de páginas físicas até ser usada
+  - Páginas reais só se heap ou pilha crescerem
+- Espaço esparso permite crescimento e vinculação dinâmica
+
+* Localidade de Referência
+
+Programas tendem a exibir localidade de referência
+
+- Localidade temporal: página recente tende a ser reutilizada em breve
+- Localidade espacial: páginas próximas a uma acessada serão acessadas
+
+#+latex: \vfill
+
+Por que a paginação sob demanda funciona na prática:
+
+- Sem localidade: cada instrução poderia gerar várias faltas de página
+  - Acessos a instrução, operandos e dados em páginas distintas
+  - Desempenho inaceitável do sistema
+- Com localidade: o conjunto de páginas ativas é pequeno e estável
+
+#+latex: \vfill
+
+Programas raramente precisam de todo o código ao mesmo tempo
+
+- Código de tratamento de erros raramente executado
+- Arrays declarados com tamanho máximo, usados parcialmente
+- Mesmo se o programa inteiro for necessário, não o é de uma vez
+
+* Paginação sob Demanda: Conceito
+
+Carregar páginas somente à medida que forem necessárias
+
+- Alternativa: carregar programa inteiro na memória antes de executar
+  - Problema: pode carregar código de opções nunca selecionadas
+- Paginação sob demanda: páginas não acessadas nunca são carregadas
+
+#+latex: \vfill
+
+Semelhante a paginação com permuta, mas com paginador:
+
+- Processos residem em memória secundária (disco)
+- Ao executar: inserir na memória apenas as páginas necessárias
+- Paginação pura: iniciar processo sem nenhuma página na memória
+  - Primeira instrução já causa falta de página
+  - Continua executando e falhando até ter páginas necessárias em RAM
+  - A partir daí: execução idealmente sem mais faltas
+
+#+latex: \vfill
+
+- Hardware necessário: tabela de páginas e memória secundária
+  - Tabela de páginas: bit de validade por entrada
+  - Memória secundária: dispositivo de permuta (/swap device/)
+
+* Hardware de Suporte: Bit de Validade
+
+Necessário distinguir páginas na memória das que estão no disco
+
+#+latex: \vfill
+
+Bit de validade na tabela de páginas
+
+- Válido (v): página no espaço lógico e presente na memória
+- Inválido (i): página fora do espaço lógico, ou presente no disco
+- Tabela marcada como inválida para páginas não carregadas
+- Acesso a página inválida: interceptação ao SO (falta de página)
+
+#+latex: \vfill
+
+- Marcar como inválida não afeta processo que não a acessar
+  - Páginas avaliadas como desnecessárias ficam no disco
+- Páginas no disco: entrada da tabela contém endereço no disco
+
+* Paginador Preguiçoso
+
+Paginação sob demanda usa a estratégia do paginador preguiçoso
+
+- Nunca insere uma página na memória a menos que seja necessária
+- "Permutador preguiçoso" é tecnicamente incorreto nesse contexto
+  - Permutador: manipula processos inteiros
+  - Paginador: cuida de páginas individuais de um processo
+
+#+latex: \vfill
+
+Avaliação prévia de páginas necessárias
+
+- Paginador avalia quais páginas serão usadas antes de remover processo
+- Traz apenas essas páginas para a memória
+- Evita transferir páginas que não serão usadas
+- Diminui tempo de permuta e montante de memória física necessária
+
+#+latex: \vfill
+
+- Paginação sob demanda pura: nenhuma página pré-carregada
+  - Primeira instrução já provoca a primeira falta de página
+  - Processo interrompido imediatamente; página carregada; retoma
+
+* Tratamento de Falta de Página
+
+Acesso a página inválida → interceptação ao SO → tratamento
+
+#+latex: \vfill
+
+1. Verificar tabela interna: acesso à memória válido ou inválido?
+2. Se inválido: encerrar processo; se válido mas ausente: prosseguir
+3. Encontrar um quadro livre (lista de quadros livres)
+4. Incluir leitura de disco no escalonamento para carregar a página
+5. Leitura concluída: atualizar tabela interna e tabela de páginas
+6. Reiniciar a instrução interrompida pela interceptação
+
+#+latex: \vfill
+
+- Processo pode acessar a página como se sempre tivesse estado na memória
+- Requisito crucial: poder reiniciar qualquer instrução após falta
+  - Estado do processo salvo no momento da interceptação
+  - Reinício exato no mesmo local e estado de quando falhou
+- Erro de página pode ocorrer em qualquer referência à memória
+  - Na busca da instrução, na busca de operandos, na escrita do resultado
+
+* Desempenho da Paginação sob Demanda
+
+Tempo de acesso efetivo (EAT) em sistema com paginação sob demanda
+
+#+latex: \vfill
+
+- p = probabilidade de falta de página (espera-se p \approx 0)
+- ma = tempo de acesso à memória (10 a 200 ns)
+- EAT = (1 – p) \times ma + p \times tempo de falta de página
+
+#+latex: \vfill
+
+Com ma = 200 ns e tempo de falta \approx 8 ms (8.000.000 ns):
+
+- EAT = 200 + 7.999.800 \times p
+- Com p = 1/1.000: EAT \approx 8,2 \mu{}s (40 vezes mais lento!)
+- Para degradação < 10%: p < 1/399.990
+  - Menos de 1 falta em cada 399.990 acessos à memória
+
+#+latex: \vfill
+
+- Taxa de faltas alta degrada dramaticamente o desempenho
+- Localidade de referência é o que mantém p baixo na prática
+
+* Cópia na Escrita (/Copy-On-Write -- COW/)
+
+Técnica para acelerar criação de processos com fork()
+
+- fork() tradicional: duplica espaço de endereçamento do pai para o filho
+- Muitos filhos chamam exec() logo após fork() — cópia desnecessária
+
+#+latex: \vfill
+
+Cópia na escrita (/copy-on-write/):
+
+- Pai e filho compartilham as mesmas páginas inicialmente
+- Páginas compartilhadas marcadas como de cópia na escrita
+- Quando um processo grava em página compartilhada:
+  - SO cria uma cópia dessa página para o processo que gravou
+- Páginas não modificadas continuam compartilhadas entre pai e filho
+- Apenas páginas modificáveis precisam ser marcadas
+
+#+latex: \vfill
+
+- Páginas de código (somente leitura) sempre compartilhadas por ambos
+- Técnica usada em Linux, Solaris, Windows XP e outros SOs
+- Resultado: criação de processo muito mais rápida e eficiente
+
+* Envolvimento do SO com Paginação
+
+Quatro momentos de envolvimento do SO com paginação (Tanenbaum)
+
+#+latex: \vfill
+
+- Criação do processo
+  - Determinar tamanho inicial do programa e dos dados
+  - Criar tabela de páginas; alocar espaço na área de troca do disco
+  - Inicializar área de troca com código e dados do processo
+- Execução do processo
+  - Reinicializar MMU para o novo processo; descarregar TLB
+  - Tornar tabela de páginas do novo processo a atual
+  - Opcionalmente: trazer páginas para reduzir faltas iniciais
+- Falta de página
+  - Ler registradores para descobrir endereço virtual causador
+  - Localizar página no disco; encontrar quadro livre
+  - Ler página, atualizar tabela, reiniciar instrução
+- Término do processo
+  - Liberar tabela de páginas, páginas na memória e espaço em disco
+  - Páginas compartilhadas: liberar apenas quando último usuário termina
+
+
+* TLB de Dois Níveis -- Motivação
+
+#+latex: \vfill
+
+Tensão fundamental no projeto de uma TLB única:
+
+#+latex: \vfill
+
+| Característica | TLB pequena | TLB grande    |
+|----------------+-------------+---------------|
+| Latência       | *1 ciclo*     | Vários ciclos |
+| Taxa de miss   | Alta        | *Baixa*         |
+
+#+latex: \vfill\pause
+
+** Solução: dois níveis
+
+- *L1*: pequena (16--64 entradas), ultrarrápida, separada iTLB / dTLB
+- *L2*: grande (512--4096 entradas), \approx5--10 ciclos, unificada
+
+#+latex: \vfill\pause
+
+** Exemplo real — Intel Core i7
+
+|                 | iTLB L1 | dTLB L1 |    TLB L2 |
+|-----------------+---------+---------+-----------|
+| Entradas (4 KB) |     128 |      64 |      1536 |
+| Entradas (2 MB) |       8 |      32 |      1536 |
+| Latência        | 1 ciclo | 1 ciclo | \approx6 ciclos |
+
+#+latex: \vfill
+
+* TLB de Dois Níveis -- Funcionamento
+
+#+latex: \vfill
+
+#+BEGIN_EXAMPLE
+  endereço virtual
+        │
+        ▼
+     L1 TLB ── hit ─────────────────────→ frame físico  (1 ciclo)
+        │
+       miss
+        │
+        ▼
+     L2 TLB ── hit ─────────────────────→ frame físico  (~6 ciclos)
+        │
+       miss
+        │
+        ▼
+   page table walk (RAM) ──────────────→ frame físico  (~centenas de ciclos)
+
+   atualiza L1 e L2
+#+END_EXAMPLE
+
+#+latex: \vfill\pause
+
+** ARM: variante com micro TLBs
+
+- Nível externo: duas *micro TLBs* separados (instruções / dados) com ASID
+- Nível interno: única *TLB principal* unificado
+- Miss nos dois níveis → page table walk em hardware
+
+#+latex: \vfill\pause
+
+\to L1 cobre o caso comum; L2 absorve os misses sem ir à RAM
+
+#+latex: \vfill
+
+* Tratamento de Falta de Página: Detalhes
+
+Sequência de passos no tratamento de falta de página (Tanenbaum)
+
+1. Hardware gera interrupção; salva contador do programa na pilha
+2. Rotina em montagem salva registradores; chama o SO
+3. SO descobre qual página virtual é necessária
+4. SO verifica validade do endereço e consistência de proteção
+5. Se quadro disponível: usar; senão: algoritmo escolhe vítima
+6. Se quadro sujo: escalonar escrita para disco; chaveamento de contexto
+7. Tão logo quadro limpo: carregar página necessária do disco
+8. Atualizar tabelas de página; marcar quadro como em estado normal
+9. Recuperar instrução para estado anterior; reiniciar o contador do prog.
+10. Escalonar processo; retornar para rotina em linguagem de máquina
+
+#+latex: \vfill
+
+- Rotina recarrega registradores; retorna ao espaço do usuário
+- Execução continua como se nenhuma falta tivesse ocorrido
+
+* Armazenamento de Apoio
+
+Memória secundária que mantém páginas ausentes da memória principal
+
+- Usualmente um disco rápido: denominado dispositivo de permuta
+- Seção do disco usada para esse fim: espaço de permuta
+- E/S para espaço de permuta mais rápida que para sistema de arquivos
+  - Blocos muito maiores; sem pesquisas de arquivos nem indireção
+
+#+latex: \vfill
+
+Estratégias de uso do espaço de permuta:
+
+- Copiar imagem do arquivo para o espaço de permuta ao iniciar processo
+  - Paginar por demanda a partir do espaço de permuta
+- Paginar inicialmente do sistema de arquivos; gravar no espaço de permuta
+  - Apenas páginas necessárias lidas do sistema de arquivos
+
+#+latex: \vfill
+
+- Memória anônima (pilha, heap): sempre requer espaço de permuta
+- Sistemas móveis (iOS, Android) geralmente não usam permuta
+  - Paginação sob demanda a partir do sistema de arquivos
+  - Páginas somente leitura reclamadas quando memória escasseia
+
+* Referências
+
+- Silberschatz
+  - Cap. 9, Sec. 9.1
+  - Cap. 9, Sec. 9.2
+  - Cap. 9, Sec. 9.2.2
+- Tanenbaum
+  - Cap. 3, Sec. 3.3 (introdução)
+  - Cap. 3, Sec. 3.6.1
+  - Cap. 3, Sec. 3.6.2
