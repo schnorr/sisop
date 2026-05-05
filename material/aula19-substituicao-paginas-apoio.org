@@ -1,0 +1,316 @@
+#+TITLE:  Material de Apoio — Aula 19: Substituição de Páginas
+#+SUBTITLE: INF01142 — Sistemas Operacionais — 2026/1
+#+AUTHOR: Prof. Lucas Mello Schnorr
+#+DATE:
+#+OPTIONS: toc:t ^:nil num:t
+
+#+LATEX_CLASS: article
+#+LATEX_CLASS_OPTIONS: [12pt, twocolumn, a4paper]
+#+LATEX_HEADER: \input{org-babel.tex}
+
+* Introdução
+
+A paginação por demanda permite que o sistema operacional mantenha na
+memória física apenas as páginas que um processo realmente usa. Isso
+torna possível executar processos cujo espaço de endereçamento é maior
+do que a memória disponível e aumentar o grau de multiprogramação —
+mais processos competindo pela CPU ao mesmo tempo.
+
+O problema surge quando a memória física se esgota. O SO pratica a
+*superalocação*: permite que a soma das páginas mapeadas por todos os
+processos seja maior do que o número de quadros físicos disponíveis,
+apostando que nem todos os processos usarão todas as suas páginas ao
+mesmo tempo. Quando essa aposta falha, não há quadros livres para
+atender uma nova falha de página. O SO precisa escolher uma página
+presente na memória, removê-la e usar o quadro liberado para a página
+solicitada. Esse mecanismo é a *substituição de páginas*, e a política
+que decide qual página remover é o *algoritmo de substituição*.
+
+* Passos Básicos e o Bit de Modificação
+
+Quando uma falha de página ocorre e não há quadros livres, o SO executa
+a seguinte sequência:
+
+1. Localiza no disco a página solicitada.
+2. Escolhe um quadro vítima usando o algoritmo de substituição.
+3. Se a página vítima foi modificada desde que entrou na memória
+   (bit de modificação = 1), grava-a no disco antes de descartá-la.
+4. Carrega a nova página no quadro liberado.
+5. Atualiza a tabela de páginas e reinicia a instrução que falhou.
+
+O *bit de modificação* (também chamado de bit sujo) é mantido pelo
+hardware em cada entrada da tabela de páginas. Ele é ligado
+automaticamente quando qualquer byte da página é escrito. Se o bit
+estiver desligado no momento da substituição, a página não foi alterada
+desde que foi lida do disco — ela pode ser descartada sem gravação, pois
+a cópia no disco já está atualizada. Isso reduz o custo de I/O de
+substituição em cerca da metade para cargas de trabalho típicas.
+
+* Algoritmo Ótimo
+
+O algoritmo ótimo (também chamado de OPT ou MIN) define o limite
+teórico inferior de falhas de página: substitua sempre a página que não
+será referenciada pelo maior período de tempo no futuro. Esse algoritmo
+produz o menor número possível de falhas para qualquer sequência de
+referências e qualquer número de quadros.
+
+O problema é que ele é irrealizável em sistemas reais: o SO não tem
+como saber com antecedência quais páginas serão referenciadas. O
+algoritmo ótimo é útil como padrão de comparação — se um algoritmo
+prático produz apenas 5% mais falhas do que o ótimo, o esforço de
+buscar um algoritmo melhor trará ganho máximo de 5%.
+
+Uma forma de usá-lo na prática é executar o programa uma vez em um
+simulador, registrar todas as referências de página, e na segunda
+execução usar essas informações para tomar as decisões ótimas. Isso
+serve para avaliar e comparar algoritmos reais, mas não tem utilidade
+em produção.
+
+* Algoritmo FIFO e a Anomalia de Bélády
+
+O algoritmo FIFO é o mais simples: substitui a página que está na
+memória há mais tempo. O SO mantém uma fila com todas as páginas
+residentes; ao carregar uma nova página ela vai para o fim da fila; a
+vítima é sempre a da frente.
+
+Apesar da simplicidade, o FIFO tem um problema grave: a página mais
+antiga pode ser exatamente a mais usada. Um módulo de inicialização
+carregado logo ao início do programa, por exemplo, seria candidato
+permanente a substituição — mesmo que contenha tabelas consultadas
+constantemente.
+
+Mais grave ainda é a *anomalia de Bélády*: com o FIFO, aumentar o número
+de quadros disponíveis pode aumentar o número de falhas de página. Para
+a sequência 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5, o FIFO produz 9 falhas
+com 3 quadros e 10 falhas com 4 quadros. Esse comportamento
+contraintuitivo ocorre porque adicionar um quadro muda quais páginas
+ficam na memória em cada instante, podendo deslocar para fora páginas
+que seriam usadas em breve.
+
+Algoritmos de pilha — como o ótimo e o LRU — não sofrem dessa anomalia.
+Para eles, o conjunto de páginas na memória com n quadros é sempre
+subconjunto do conjunto com n+1 quadros.
+
+* Algoritmo LRU
+
+O LRU (Least Recently Used — usada menos recentemente) é a melhor
+aproximação prática do algoritmo ótimo. Em vez de olhar para o futuro,
+ele olha para o passado: substitui a página que não foi referenciada
+pelo maior intervalo de tempo. A intuição é o princípio da localidade
+temporal — páginas usadas recentemente tendem a ser usadas novamente
+em breve; páginas não usadas há muito tendem a permanecer inativas.
+
+Há duas implementações clássicas:
+
+- *Contadores*: o hardware mantém um contador incrementado a cada
+  referência à memória. Ao referenciar uma página, o valor atual do
+  contador é gravado na entrada da tabela de páginas. A vítima é a
+  página com o menor valor — a mais antiga referência. A busca pela
+  vítima exige varredura de toda a tabela.
+
+- *Pilha*: uma lista duplamente encadeada mantém as páginas em ordem
+  de uso recente. Ao referenciar uma página, ela é removida de onde
+  estiver e inserida no topo. A vítima está sempre no fundo — sem
+  necessidade de busca. A desvantagem é o custo de atualização da
+  lista a cada referência de memória.
+
+Ambas as implementações exigem suporte de hardware que poucos sistemas
+fornecem de forma completa. Na prática usa-se uma aproximação.
+
+* Aproximações do LRU
+
+** Bits de Referência Adicionais
+
+O hardware fornece um único bit de referência por página, ligado
+automaticamente a cada acesso. O SO registra o histórico de uso
+deslocando esse bit para o byte de 8 bits mantido por software para
+cada página: a cada interrupção de relógio, o bit de referência é
+copiado para o bit mais significativo do byte e os demais bits são
+deslocados para a direita. O byte resultante representa o histórico
+recente de uso da página. A página com o menor valor numérico é a
+candidata LRU.
+
+** Algoritmo de Segunda Chance (Relógio)
+
+O algoritmo de segunda chance parte do FIFO mas evita descartar páginas
+em uso ativo. Ao selecionar a vítima FIFO, verifica o bit de referência:
+
+- Se o bit for 0: a página não foi usada recentemente — substitui.
+- Se o bit for 1: dá à página uma "segunda chance" — zera o bit, move
+  a página para o fim da fila com timestamp atual, e examina a próxima.
+
+Na pior das hipóteses (todos os bits em 1), o algoritmo percorre toda a
+fila zerando bits e então recomeça — degenerando em FIFO. O algoritmo
+do relógio é uma implementação mais eficiente: as páginas ficam em
+lista circular e um ponteiro avança sem mover elementos.
+
+** Segunda Chance Aperfeiçoada: Bits R e M (NRU)
+
+Considerando simultaneamente o bit de referência (R) e o bit de
+modificação (M), obtemos quatro classes de páginas:
+
+| C | R | M | Interpretação             |
+|---+---+---+---------------------------|
+| 0 | 0 | 0 | Não usada, não modificada |
+|   |   |   | — melhor vítima           |
+| 1 | 0 | 1 | Não usada, modificada     |
+|   |   |   | — precisa gravar          |
+| 2 | 1 | 0 | Usada, não modificada     |
+|   |   |   | — provavelmente útil      |
+| 3 | 1 | 1 | Usada e modificada        |
+|   |   |   | — pior vítima             |
+
+O algoritmo NRU (Not Recently Used) substitui uma página ao acaso da
+classe de menor número não vazia. A lógica é que é preferível remover
+uma página modificada mas não referenciada (classe 1) a remover uma
+não modificada mas intensamente usada (classe 2).
+
+* Algoritmos Baseados em Contadores: LFU e MFU
+
+O LFU (Least Frequently Used) substitui a página com menor contagem de
+referências acumulada. O problema é que páginas muito usadas no início
+da execução acumulam contagens altas e ficam na memória mesmo após
+tornarem-se irrelevantes. Uma solução é deslocar as contagens um bit à
+direita periodicamente, implementando uma média exponencialmente
+decrescente — esse algoritmo é chamado de envelhecimento (aging) e
+aproxima bem o LRU com baixo custo de hardware.
+
+O MFU (Most Frequently Used) faz o oposto: substitui a página mais
+referenciada, argumentando que a menos usada foi carregada recentemente
+e ainda será necessária. Nenhum dos dois é amplamente usado em sistemas
+reais — a implementação é cara e a aproximação ao ótimo é pior do que
+a do relógio.
+
+* Conjunto de Trabalho e WSClock
+
+O *conjunto de trabalho* de um processo é o conjunto de páginas que ele
+está ativamente usando em um dado momento. Se todo o conjunto de
+trabalho estiver na memória, o processo gera poucas falhas de página.
+Se não houver quadros suficientes para o conjunto de trabalho, o
+processo entra em *ultrapaginação* (thrashing): passa mais tempo
+resolvendo falhas de página do que executando trabalho útil.
+
+O algoritmo WSClock combina o conjunto de trabalho com o algoritmo do
+relógio. As páginas ficam em lista circular; cada entrada contém o
+instante do último uso e o bit R. A cada falha de página, o ponteiro
+inspeciona a entrada atual:
+
+- R = 1: página usada recentemente -- zera R, avança ponteiro.
+- R = 0 e idade > tau: página fora do conjunto de trabalho.
+  - Página limpa: remove imediatamente.
+  - Página suja: escalona gravação em disco, avança ponteiro.
+
+O WSClock é simples, eficiente e tem bom desempenho na prática. Junto
+com o envelhecimento, é um dos dois algoritmos recomendados por
+Tanenbaum para uso em sistemas reais.
+
+* Resumo Comparativo
+
+Veja a tabela.
+
+#+latex: \begin{table*}[ht]
+#+attr_latex: :booktabs t :center t
+| Algoritmo      | Implementável? | Anomalia de Bélády | Desempenho   |
+|----------------+----------------+--------------------+--------------|
+| Ótimo          | Não            | Não                | Referência   |
+| FIFO           | Sim            | Sim                | Fraco        |
+| LRU            | Com HW especial| Não                | Excelente    |
+| NRU            | Sim            | —                  | Razoável     |
+| Segunda chance | Sim            | —                  | Bom          |
+| Relógio        | Sim            | —                  | Bom          |
+| Envelhecimento | Sim            | —                  | Muito bom    |
+| WSClock        | Sim            | —                  | Muito bom    |
+#+latex: \end{table*}
+
+* Cinco Questões para Reflexão
+** Questão 1
+
+Considere a sequência de referências de página abaixo com *3 quadros*
+(inicialmente vazios) e aplique os algoritmos FIFO e ótimo:
+
+#+BEGIN_EXAMPLE
+  1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5
+#+END_EXAMPLE
+
+a) Quantas falhas de página cada algoritmo produz?
+
+b) Repita para *4 quadros*. O que você observa no caso do FIFO?
+
+c) Explique por que o algoritmo ótimo pertence à classe dos
+   algoritmos de pilha e, portanto, não sofre da anomalia de Bélády.
+
+** Questão 2
+
+Um sistema operacional usa o algoritmo de segunda chance (relógio).
+Os quadros de página e seus bits de referência no instante de uma
+falha estão na ordem circular abaixo (ponteiro em P1):
+
+#+BEGIN_EXAMPLE
+  P1 (R=1) → P2 (R=0) → P3 (R=1)
+    → P4 (R=0) → P5 (R=1)
+#+END_EXAMPLE
+
+a) Qual página será substituída? Justifique passo a passo.
+
+b) Quais bits de referência foram alterados durante o processo?
+
+c) Se todos os bits fossem 1, qual seria o comportamento do
+   algoritmo? A que algoritmo ele degeneraria?
+
+** Questão 3
+
+O hardware de um sistema fornece os bits R (referência) e M
+(modificação) para cada página. Em um dado instante, quatro páginas
+estão na memória com os seguintes estados:
+
+| Página | R | M |
+|--------+---+---|
+| A      | 0 | 0 |
+| B      | 1 | 1 |
+| C      | 0 | 1 |
+| D      | 1 | 0 |
+
+a) Classifique cada página nas classes 0 a 3 do algoritmo NRU.
+
+b) Qual página o NRU escolheria como vítima? Por quê?
+
+c) Compare a escolha do NRU com a que o FIFO faria se A fosse a
+   página mais antiga. Qual é melhor? Justifique.
+
+** Questão 4
+
+O algoritmo LRU pode ser implementado com contadores ou com pilha.
+
+a) Descreva o custo de cada implementação em termos de operações por
+   referência de memória e por falha de página.
+
+b) Por que a implementação com pilha é considerada superior à de
+   contadores para a operação de seleção da vítima, mas ambas
+   exigem suporte de hardware raramente disponível?
+
+c) O algoritmo de envelhecimento (aging) é uma aproximação do LRU
+   implementável em software. Explique seu funcionamento e aponte
+   uma situação em que ele pode diferir do LRU verdadeiro.
+
+** Questão 5
+
+Um processo executa em um sistema com paginação por demanda e gera
+a seguinte taxa de uso de CPU e disco de paginação: 15% de CPU e
+95% de disco.
+
+a) O que esse padrão indica sobre o comportamento do processo?
+   Use o conceito de conjunto de trabalho para justificar.
+
+b) Aumentar o grau de multiprogramação (adicionar mais processos)
+   melhoraria ou pioraria a situação? Explique.
+
+c) Quais são as duas principais estratégias que o SO pode adotar
+   para resolver esse problema sem reduzir o grau de
+   multiprogramação?
+
+* Referências
+
+- Silberschatz, A.; Galvin, P. B.; Gagne, G. /Fundamentos de Sistemas
+  Operacionais/. LTC, 2019. Cap. 9, Secs. 9.4 e 9.5.
+- Tanenbaum, A. S.; Bos, H. /Sistemas Operacionais Modernos/. 4ª ed.
+  Pearson, 2016. Cap. 3, Secs. 3.4.1–3.4.10.
