@@ -1,0 +1,355 @@
+# -*- coding: utf-8 -*-
+# -*- mode: org -*-
+#+startup: beamer overview indent
+#+LANGUAGE: pt-br
+#+TAGS: noexport(n)
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+EXPORT_SELECT_TAGS: export
+
+#+Title: Sistemas Operacionais
+#+Subtitle: Substituição de Páginas
+#+Author: Prof. Lucas Mello Schnorr (UFRGS)
+#+Date: \copyleft
+
+#+LaTeX_CLASS: beamer
+#+LaTeX_CLASS_OPTIONS: [xcolor=dvipsnames,10pt]
+#+OPTIONS: H:1 num:t toc:nil \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
+#+LATEX_HEADER: \input{org-babel.tex}
+
+* Estrutura da aula
+
+- Motivação: substituição de páginas
+  - Superalocação de memória
+  - Passos básicos da substituição de páginas
+  - Bit de modificação (bit sujo)
+- Algoritmos de substituição de páginas
+  - Algoritmo ótimo (OPT/MIN)
+  - Algoritmo FIFO e anomalia de Bélády
+  - Algoritmo LRU: contadores e pilha
+- Aproximações do LRU
+  - Bits de referência adicionais
+  - Algoritmo de segunda chance (relógio)
+  - Segunda chance aperfeiçoada: bits R e M (NRU)
+- Algoritmos baseados em contadores (LFU, MFU)
+- Conjunto de trabalho e WSClock
+- Resumo dos algoritmos
+
+* Motivação: Substituição de Páginas
+
+Paginação por demanda permite grau de multiprogramação elevado
+
+- Processos não precisam ter todas as páginas na memória
+- Memória superalocada: soma das páginas supera quadros físicos
+
+#+latex: \vfill
+
+Superalocação manifesta-se como falta de quadros livres
+
+- Processo gera falha de página; SO não encontra quadro livre
+- Toda a memória está ocupada por páginas de outros processos
+
+#+latex: \vfill
+
+Solução: substituição de páginas — escolher uma vítima e removê-la
+
+- Liberamos um quadro gravando seu conteúdo no espaço de permuta
+- A página que causou a falha é carregada no quadro liberado
+
+* Passos Básicos da Substituição de Páginas
+
+Ao ocorrer uma falha de página sem quadros livres disponíveis:
+
+#+latex: \vfill
+
+1. Localizar a página desejada no disco
+2. Procurar um quadro livre
+   - Se houver quadro livre, usá-lo
+   - Caso contrário, escolher um quadro vítima pelo algoritmo
+   - Gravar a vítima no disco e atualizar as tabelas de páginas
+3. Carregar a página desejada no quadro recém-liberado
+4. Retomar o processo a partir do ponto em que ocorreu a falha
+
+#+latex: \vfill
+
+Bit de modificação (bit sujo): hardware liga o bit ao gravar na página
+
+- Ao substituir: se bit ligado, gravar no disco; se desligado, descartar
+- Reduz o I/O de substituição pela metade nas páginas não modificadas
+
+* Algoritmo Ótimo (OPT/MIN)
+
+Algoritmo com menor taxa de falhas de página possível
+
+- Substituir a página que não será usada pelo período mais longo
+- Garante o menor número de falhas para um número fixo de quadros
+
+#+latex: \vfill
+
+Problema: o algoritmo é irrealizável na prática
+
+- O SO não tem como saber quando cada página será referenciada
+- Situação análoga ao escalonamento "tarefa mais curta primeiro"
+
+#+latex: \vfill
+
+Uso principal: servir como referência de desempenho
+
+- Executa-se o programa, registra-se as referências de páginas
+- Usa-se o registro para implementar o ótimo em uma segunda execução
+- Compara-se outros algoritmos com o ótimo como medida de qualidade
+
+* Algoritmo FIFO
+
+Algoritmo mais simples: substituir a página mais antiga
+
+- Associa a cada página a hora em que foi trazida para a memória
+- Implementado como fila: página nova entra na cauda, vítima sai da cabeça
+
+#+latex: \vfill
+
+Fácil de entender e implementar, mas desempenho pode ser ruim
+
+- A página mais antiga pode ser uma variável global constantemente usada
+- Removê-la causará nova falha de página imediatamente
+
+#+latex: \vfill
+
+Sequência 7,0,1,2,0,3,0,4,2,3,0,3,2,1,2,0,1,7,0,1 com 3 quadros: 15 falhas
+
+- Com o algoritmo ótimo para a mesma sequência: 9 falhas
+
+* Anomalia de Bélády
+
+Comportamento inesperado do FIFO: mais quadros → mais falhas
+
+- Sequência 1,2,3,4,1,2,5,1,2,3,4,5 com 3 quadros: 9 falhas
+- A mesma sequência com 4 quadros: 10 falhas — pior resultado!
+
+#+latex: \vfill
+
+Anomalia de Bélády: aumentar quadros pode aumentar falhas de página
+
+- Descoberta ao analisar o algoritmo FIFO
+- Contradiz a intuição de que mais memória melhora o desempenho
+
+#+latex: \vfill
+
+Algoritmos de pilha não sofrem da anomalia de Bélády
+
+- Conjunto de páginas com n quadros incluso conjunto com n+1 quadros
+- Algoritmo ótimo e LRU são algoritmos de pilha
+
+* Algoritmo LRU: Conceito
+
+Aproximação do algoritmo ótimo olhando para o passado
+
+- Substituir a página que não foi usada pelo maior período de tempo
+- Princípio de localidade: páginas usadas recentemente serão usadas em breve
+
+#+latex: \vfill
+
+Páginas usadas intensamente nas últimas instruções provavelmente voltarão
+
+- Páginas sem uso por longo tempo provavelmente seguirão sem ser usadas
+- Estratégia: ao falhar, remover a página usada há mais tempo
+
+#+latex: \vfill
+
+LRU não sofre da anomalia de Bélády (é algoritmo de pilha)
+
+- Excelente algoritmo, porém difícil de implementar de forma exata
+- Nenhuma implementação concebível sem suporte de hardware adicional
+
+* Implementação do LRU: Contadores e Pilha
+
+Duas abordagens para implementar o LRU com hardware:
+
+#+latex: \vfill
+
+Contadores
+
+- CPU mantém registrador de relógio lógico incrementado a cada referência
+- Cada entrada da tabela de páginas guarda o valor do relógio no último acesso
+- Na falha de página: substituir a página com o menor valor de relógio
+- Requer busca na tabela e escrita em memória a cada referência
+
+#+latex: \vfill
+
+Pilha
+
+- Pilha de números de página; página referenciada vai para o topo
+- Topo: página mais recentemente usada; base: página LRU
+- Implementada como lista duplamente encadeada (até 6 ponteiros por acesso)
+- Substituição sem busca: o ponteiro da cauda indica a vítima
+
+* Aproximação do LRU: Bits de Referência
+
+Suporte de hardware mínimo: bit de referência por página
+
+- Hardware liga o bit sempre que a página é lida ou escrita
+- SO zera todos os bits periodicamente e os observa para inferir uso
+
+#+latex: \vfill
+
+Bits de referência adicionais: byte de 8 bits por página
+
+- A cada interrupção de relógio (ex: 100 ms), o SO desloca o registrador
+- Bit de referência atual entra no bit mais significativo; bits deslocam à direita
+- Byte resultante contém histórico de uso dos últimos 8 intervalos
+- Página com menor valor inteiro do byte é a candidata LRU
+
+#+latex: \vfill
+
+Exemplo de bytes de histórico:
+
+- 11111111 → usada pelo menos uma vez em cada um dos 8 intervalos
+- 00000000 → não usada em nenhum dos 8 últimos intervalos
+- 11000100 foi usada mais recentemente que 01110111
+
+* Algoritmo de Segunda Chance (Relógio)
+
+Caso extremo dos bits adicionais: apenas 1 bit de referência
+
+- Algoritmo de substituição FIFO com inspeção do bit de referência
+- Bit = 0: a página é antiga e pouco usada → substituir imediatamente
+- Bit = 1: dar uma segunda chance → zerar bit, atualizar hora de chegada
+
+#+latex: \vfill
+
+Implementação em fila circular (algoritmo do relógio):
+
+- Ponteiro indica a próxima candidata à substituição
+- Ponteiro avança zerando bits de referência até encontrar bit = 0
+- Página com bit = 0 encontrada: substituir e inserir nova página no lugar
+- Na pior das hipóteses, todos os bits = 1: percorre toda a fila (vira FIFO)
+
+#+latex: \vfill
+
+Algoritmo do relógio (Tanenbaum): estrutura circular mais eficiente
+
+- Evita mover páginas na lista encadeada (segunda chance faz isso)
+- Mesmo comportamento do segunda chance, menor custo de execução
+
+* Segunda Chance Aperfeiçoada: Bits R e M (NRU)
+
+Usar par ordenado (bit de referência R, bit de modificação M):
+
+- Classe 0: (0,0) não referenciada, não modificada — melhor candidata
+- Classe 1: (0,1) não referenciada, modificada — precisa ser gravada em disco
+- Classe 2: (1,0) referenciada, não modificada — usada recentemente
+- Classe 3: (1,1) referenciada e modificada — usada e precisa ser gravada
+
+#+latex: \vfill
+
+Algoritmo NRU (Not Recently Used — Tanenbaum):
+
+- Remove uma página ao acaso da classe de menor número não vazia
+- Bit R zerado periodicamente (ex: a cada interrupção de relógio)
+- Preferência por páginas não modificadas reduz I/O de substituição
+
+#+latex: \vfill
+
+Algoritmo da segunda chance aperfeiçoada (Silberschatz):
+
+- Mesmo princípio das quatro classes sobre a fila circular
+- Pode varrer a fila circular várias vezes antes de encontrar vítima
+
+* Algoritmo Baseado em Contadores
+
+Manter contador de referências por página como base da substituição
+
+#+latex: \vfill
+
+LFU — Least Frequently Used (menos frequentemente usada):
+
+- Substituir a página com a menor contagem de referências
+- Página ativamente usada deve ter contagem alta
+- Problema: página muito usada na fase inicial mantém contagem alta
+- Solução: deslocar contagens 1 bit à direita em intervalos regulares
+
+#+latex: \vfill
+
+MFU — Most Frequently Used (mais frequentemente usada):
+
+- Substituir a página com a maior contagem de referências
+- Argumento: página com contagem baixa foi trazida recentemente
+- Provavelmente ainda será usada em breve
+
+#+latex: \vfill
+
+Nem LFU nem MFU são comuns na prática
+
+- Implementação cara; não aproximam bem o algoritmo ótimo
+
+* Conjunto de Trabalho (Working Set)
+
+Conjunto de trabalho: páginas que o processo usa atualmente
+
+- w(k,t): conjunto de páginas das k referências de memória mais recentes
+- Se todo o conjunto de trabalho está na memória: poucas falhas de página
+- Sem espaço para o conjunto: thrashing (ultrapaginação)
+
+#+latex: \vfill
+
+Algoritmo do conjunto de trabalho: remover páginas fora do conjunto
+
+- Cada entrada da tabela guarda o instante do último uso e o bit R
+- Se R=1: atualizar o instante de último uso para o tempo virtual atual
+- Se R=0 e idade > tau: página fora do conjunto → candidata a remoção
+- Se R=0 e idade <= tau: página ainda no conjunto → poupar
+
+#+latex: \vfill
+
+Pré-paginação: carregar o conjunto de trabalho antes de executar
+
+- Reduz falhas ao reiniciar processo que esteve no disco
+- O conjunto de trabalho varia lentamente com o tempo
+
+* Algoritmo WSClock
+
+Combina o algoritmo do conjunto de trabalho com a estrutura do relógio
+
+- Páginas em lista circular; ponteiro avança na ocorrência de falha
+
+#+latex: \vfill
+
+Ao inspecionar a página apontada:
+
+- R=1: zerar o bit R, avançar o ponteiro, continuar
+- R=0 e idade > tau (fora do conjunto de trabalho):
+  - Página limpa (não modificada): substituir imediatamente
+  - Página suja (modificada): escalonar escrita em disco, avançar ponteiro
+- Se toda a lista foi percorrida sem candidato limpo: substituir o mais antigo
+
+#+latex: \vfill
+
+WSClock é eficiente e tem bom desempenho na prática
+
+- Evita varredura da tabela inteira a cada falha (custo do conjunto de trabalho)
+- Um dos dois melhores algoritmos segundo Tanenbaum (com envelhecimento)
+
+* Resumo dos Algoritmos de Substituição
+
+| Algoritmo      | Característica principal                              |
+|----------------+-------------------------------------------------------|
+| Ótimo          | Menor taxa possível; irrealizável (referência)        |
+| FIFO           | Simples; pode causar anomalia de Bélády               |
+| Segunda chance | FIFO com bit de referência; muito melhorado           |
+| Relógio        | Segunda chance eficiente em lista circular            |
+| LRU            | Excelente; exige hardware especial                    |
+| NRU            | Quatro classes (R,M); rudimentar, fácil de implementar |
+| Envelhecimento | Aproximação eficiente do LRU em software             |
+| LFU / MFU      | Baseados em contadores; não são comuns                |
+| Conjunto trab. | Bom desempenho; varredura da tabela é cara            |
+| WSClock        | Conjunto de trabalho + relógio; eficiente e prático   |
+
+#+latex: \vfill
+
+Melhores escolhas práticas (Tanenbaum): envelhecimento e WSClock
+
+* Referências
+
+- Silberchatz
+  - Cap. 9, Secs. 9.4, 9.5
+- Tanenbaum
+  - Cap. 3, Secs. 3.4.1, 3.4.2, 3.4.3, 3.4.5, 3.4.6, 3.4.7, 3.4.8, 3.4.10
