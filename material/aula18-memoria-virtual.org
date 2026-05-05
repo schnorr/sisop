@@ -338,19 +338,19 @@ Tensão fundamental no projeto de uma TLB única:
 
 #+BEGIN_EXAMPLE
   endereço virtual
-        │
-        ▼
-     L1 TLB ── hit ─────────────────────→ frame físico  (1 ciclo)
-        │
+        |
+        |
+     L1 TLB -- hit ---------> frame físico  (1 ciclo)
+        |
        miss
-        │
-        ▼
-     L2 TLB ── hit ─────────────────────→ frame físico  (~6 ciclos)
-        │
+        |
+        |
+     L2 TLB -- hit ---------> frame físico  (~6 ciclos)
+        |
        miss
-        │
-        ▼
-   page table walk (RAM) ──────────────→ frame físico  (~centenas de ciclos)
+        |
+        |
+   page table walk (RAM) ---> frame físico  (~centenas de ciclos)
 
    atualiza L1 e L2
 #+END_EXAMPLE
