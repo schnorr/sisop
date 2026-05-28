@@ -21,6 +21,8 @@
 - RAID: conceito e definição
   - RAID 0: striping sem redundância
   - RAID 1: espelhamento
+  - RAID 2: código de Hamming
+  - RAID 3: paridade simples
   - RAID 4 e 5: paridade distribuída
   - RAID 6 e comparação dos níveis
 - Journaling
@@ -133,6 +135,49 @@ Técnica: duplicação completa de todos os discos
 - Recuperação: instalar novo disco e copiar dados do espelho
 - MTBF de perda de dados \approx 57.000 anos @@latex:\linebreak@@
   (MTBF=100.000 h, tempo de reparo=10 h)
+
+* RAID 2 — Código de Hamming com Sincronização
+
+Técnica: striping em nível de palavra/byte com código Hamming
+
+- Cada palavra de dados dividida bit a bit entre os discos
+- Bits de paridade Hamming em discos adicionais
+- Correção de erro de 1 bit sem parar o sistema
+
+#+latex: \vfill
+
+Requisitos e limitações:
+
+- Discos rigorosamente sincronizados (rotação e braço)
+- Sobrecarga: 19% com 32 discos de dados + 6 de paridade
+- Controlador complexo: verificação Hamming em cada bit
+- Uso: sistemas de alto desempenho (ex.: CM-2 da Thinking Machines)
+
+#+latex: \vfill
+
+Raramente utilizado na prática devido à complexidade
+
+* RAID 3 — Paridade Simples com Sincronização
+
+Técnica: versão simplificada do RAID 2
+
+- Um único bit de paridade por palavra de dados
+- Paridade gravada em disco dedicado
+- Discos sincronizados: palavras espalhadas por múltiplos discos
+
+#+latex: \vfill
+
+Correção de erro na falha de disco:
+
+- Posição do bit defeituoso é conhecida (disco quebrado)
+- Controlador trata bits do disco falho como 0
+- Erro de paridade indica que o bit deveria ser 1 — corrigido
+
+#+latex: \vfill
+
+Limitação: número de operações E/S por segundo não melhora
+
+- Taxa de dados alta, mas não paraleliza requisições
 
 * RAID 4 e 5 — Paridade Distribuída
 
@@ -344,4 +389,4 @@ Verificação de diretórios:
 - Tanenbaum
   - Cap. 4, Secs. 4.3.5–4.3.7 — Journaling e VFS
   - Cap. 4, Secs. 4.4.2–4.4.3 — Backups e consistência
-  - Cap. 5, Sec. 5.4.2 — RAID
+  - Cap. 5, Sec. 5.4.2 — RAID (níveis 0–6)
