@@ -141,8 +141,11 @@ Técnica: duplicação completa de todos os discos
 Técnica: striping em nível de palavra/byte com código Hamming
 
 - Cada palavra de dados dividida bit a bit entre os discos
-- Bits de paridade Hamming em discos adicionais
-- Correção de erro de 1 bit sem parar o sistema
+- Bits de paridade Hamming em discos adicionais (não representados)
+  - Correção de erro de 1 bit sem parar o sistema
+
+#+attr_latex: :width .9\linewidth
+[[./img/T_fig5.20c.png]]
 
 #+latex: \vfill
 
@@ -165,21 +168,30 @@ Técnica: versão simplificada do RAID 2
 - Paridade gravada em disco dedicado
 - Discos sincronizados: palavras espalhadas por múltiplos discos
 
-#+latex: \vfill
+#+attr_latex: :width .9\linewidth
+[[./img/T_fig5.20d.png]]
 
-Correção de erro na falha de disco:
+#+latex: \vfill\pause
+
+** Correção de erro na falha de disco
 
 - Posição do bit defeituoso é conhecida (disco quebrado)
 - Controlador trata bits do disco falho como 0
 - Erro de paridade indica que o bit deveria ser 1 — corrigido
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-Limitação: número de operações E/S por segundo não melhora
-
+** Limitação: número de operações E/S por segundo não melhora
 - Taxa de dados alta, mas não paraleliza requisições
 
-* RAID 4 e 5 — Paridade Distribuída
+* RAID 4 — Paridade Distribuída (1/2)
+
+#+begin_center
+[Como o RAID 0 + paridade faixa por faixa em disco extra]
+
+#+attr_latex: :width .3\linewidth
+[[./img/T_fig5.20.png]]
+#+end_center
 
 RAID 4 — paridade por blocos intercalados em disco dedicado
 
@@ -189,7 +201,10 @@ RAID 4 — paridade por blocos intercalados em disco dedicado
   (4 acessos ao disco por escrita)
 - Problema: disco de paridade único torna-se gargalo
 
-#+latex: \vfill
+#+attr_latex: :width .9\linewidth
+[[./img/T_fig5.20e.png]]
+
+* RAID 5 — Paridade Distribuída (2/2)
 
 RAID 5 — paridade distribuída com blocos intercalados
 
@@ -198,20 +213,23 @@ RAID 5 — paridade distribuída com blocos intercalados
 - Elimina o gargalo do disco de paridade único
 - Nível RAID com paridade mais utilizado na prática
 
-* RAID 6 e Comparação dos Níveis
+#+attr_latex: :width .9\linewidth
+[[./img/T_fig5.20f.png]]
 
-RAID 6 — esquema de redundância P + Q
+* RAID 6 — Redundância da Paridade Distribuída
+
+RAID 6 — esquema de redundância P + Q (ou P + P' como na figura)
 
 - Dois blocos de paridade (ex.: códigos Reed-Solomon)
 - Tolera falha simultânea de até dois discos
 - Escritas mais custosas; leituras sem penalidade adicional
 
-#+latex: \vfill
+#+attr_latex: :width .9\linewidth
+[[./img/T_fig5.20g.png]]
 
+* Comparação dos Níveis
 ** Níveis e características                                        :BMCOL:
-:PROPERTIES:
-:BEAMER_col: 0.52
-:END:
+
 | Nível  | Redundância    | Overhead |
 |--------+----------------+----------|
 | RAID 0 | nenhuma        | 0%       |
@@ -220,17 +238,11 @@ RAID 6 — esquema de redundância P + Q
 | RAID 5 | paridade dist. | 1/N      |
 | RAID 6 | 2 paridades    | 2/N      |
 
-** Uso típico                                                       :BMCOL:
-:PROPERTIES:
-:BEAMER_col: 0.44
-:END:
+** Uso típico
 
-- RAID 0: alto desempenho,
-  dados não críticos
-- RAID 1: alta disponibilidade,
-  recuperação rápida
-- RAID 5: volumes grandes,
-  custo/desempenho equilibrado
+- RAID 0: alto desempenho, dados não críticos
+- RAID 1: alta disponibilidade, recuperação rápida
+- RAID 5: volumes grandes, custo/desempenho equilibrado
 - RAID 6: máxima confiabilidade
 
 * Journaling: Motivação e Conceito
