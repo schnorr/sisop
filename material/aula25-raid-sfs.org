@@ -409,14 +409,16 @@ Cache unificado (somente de páginas)
 
 * Verificação de Consistência e Recuperação
 
-Queda do sistema pode deixar estruturas do SF inconsistentes
+** Queda do sistema pode deixar estruturas do SF inconsistentes
 
-- Diretórios, ponteiros de blocos, FCBs podem ser corrompidos
-- Cache de gravação não descarregado antes da queda
+- Diretórios, ponteiros de blocos podem ser corrompidos
+- FCB (File Control Block / i-node): metadados do arquivo
+  - Proprietário, permissões, localização dos blocos de dados
+- Cache de gravação não descarregado antes da queda do sistema
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-Verificador de consistência (fsck / sfc):
+** Verificador de consistência (fsck / sfc)
 
 - Constrói dois contadores por bloco (em arquivo / na lista livre)
 - Bloco desaparecido: não está em arquivo nem na lista livre
@@ -426,7 +428,7 @@ Verificador de consistência (fsck / sfc):
 
 #+latex: \vfill
 
-Verificação de diretórios:
+** Verificação de diretórios
 
 - Contagens de ligações nos i-nodes devem bater com entradas
 - Contagem alta demais: desperdiça espaço (não crítico)
