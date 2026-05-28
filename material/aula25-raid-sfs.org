@@ -37,6 +37,7 @@ Discos são o componente mais lento do computador
 
 - Falha de um disco causa perda de dados
 - Risco cresce com o número de discos no sistema
+  - MTBF: /Mean Time Between Failures/ (métrica de confiabilidade)
   - Array de 100 discos com MTBF de 100.000 h
     - Falha esperada a cada 1.000 h (\approx 41 dias)
 
@@ -61,21 +62,21 @@ RAID — /Redundant Array of +Inexpensive+ Independent Disks/
 
 #+latex: \vfill
 
-Sete configurações padrão: RAID nível 0 a RAID nível 6
+** Sete configurações padrão: RAID nível 0 a RAID nível 6
 
 - Cada nível é uma organização diferente, sem hierarquia
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-Implementações possíveis:
+** Implementações possíveis
 
 - Software (no kernel ou em camada do sistema)
 - Hardware no adaptador de barramento (HBA)
 - Hardware no array de armazenamento dedicado
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-Recurso adicional: disco de segurança (/hot spare/)
+** Recurso adicional: disco de segurança (/hot spare/)
 
 - Disco reserva substituído automaticamente em caso de falha
 
@@ -87,17 +88,20 @@ Técnica: distribuição de dados (/striping/)
 - Faixas consecutivas distribuídas nos discos em round-robin
 - Controlador divide acesso grande em comandos paralelos
 
-#+latex: \vfill
+#+attr_latex: :width .6\linewidth
+[[./img/T_fig5.20.png]]
 
-Desempenho:
+#+latex: \vfill\pause
 
-- N discos: taxa de transferência N vezes maior
+** Desempenho
+
+- N discos: taxa de transferência N \times maior
   para acessos de múltiplos blocos
 - Sem ganho para acessos de um setor por vez
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-Limitação crítica:
+** Limitação crítica
 
 - Nenhuma redundância — não é RAID verdadeiro
 - Falha de um disco destrói todos os dados do array
@@ -111,20 +115,23 @@ Técnica: duplicação completa de todos os discos
 - Volume espelhado: disco lógico com dois discos físicos
 - Sem distribuição — tudo é duplicado
 
+#+attr_latex: :width .9\linewidth
+[[./img/T_fig5.20b.png]]
+
 #+latex: \vfill
 
-Desempenho:
+** Desempenho
 
 - Leitura: qualquer cópia pode ser usada — dobra o throughput
 - Escrita: sem melhora — ambos os discos recebem os dados
 
 #+latex: \vfill
 
-Confiabilidade:
+** Confiabilidade
 
 - Falha de um disco: a cópia do par continua funcionando
 - Recuperação: instalar novo disco e copiar dados do espelho
-- MTBF de perda de dados \approx 57.000 anos
+- MTBF de perda de dados \approx 57.000 anos @@latex:\linebreak@@
   (MTBF=100.000 h, tempo de reparo=10 h)
 
 * RAID 4 e 5 — Paridade Distribuída
