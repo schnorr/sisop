@@ -25,6 +25,7 @@
   - RAID 3: paridade simples
   - RAID 4 e 5: paridade distribuída
   - RAID 6 e comparação dos níveis
+  - RAID 0+1 e 1+0: níveis combinados
 - Journaling
   - Motivação e conceito
   - Operação e recuperação
@@ -242,8 +243,40 @@ RAID 6 — esquema de redundância P + Q (ou P + P' como na figura)
 
 - RAID 0: alto desempenho, dados não críticos
 - RAID 1: alta disponibilidade, recuperação rápida
-- RAID 5: volumes grandes, custo/desempenho equilibrado
+- RAID 5: volumes grande, custo/desempenho equilibrado
 - RAID 6: máxima confiabilidade
+
+#+latex: \vfill
+
+** Outro uso: desempenho e confiabilidade igualmente importantes
+- Exemplo: bancos de dados pequenos
+
+* RAID 0+1 e 1+0 — Níveis Combinados
+
+RAID 0+1 — striping depois espelhamento
+
+- Primeiro: criar distribuição (striping) dos dados
+- Depois: espelhar toda a distribuição
+- Falha de um disco: distribuição inteira fica inacessível
+
+#+attr_latex: :width .35\linewidth
+[[./img/S_fig10.12a.png]]
+
+#+latex: \vfill
+
+RAID 1+0 (/RAID 10/) — espelhamento depois striping
+
+- Primeiro: espelhar discos em pares
+- Depois: distribuir os pares espelhados
+- Falha de um disco: apenas ele fica indisponível
+- Disco espelhado continua disponível
+
+#+attr_latex: :width .35\linewidth
+[[./img/S_fig10.12b.png]]
+
+#+begin_center
+Melhor desempenho que RAID 5, mas overhead de 100%
+#+end_center
 
 * Journaling: Motivação e Conceito
 
