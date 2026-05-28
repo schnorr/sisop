@@ -286,17 +286,17 @@ Operação simples (remover arquivo) envolve múltiplos passos:
 2. Liberar o i-node para o conjunto de i-nodes livres
 3. Devolver os blocos de dados para a lista de blocos livres
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-Queda do sistema no meio da operação gera inconsistência:
+** Queda do sistema no meio da operação gera inconsistência
 
 - I-node e blocos ficam inacessíveis e não realocáveis
 - Verificador (fsck/sfc) pode levar minutos ou horas
 - Sistemas de terabytes: horas de verificação na inicialização
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-Solução: sistemas de arquivos journaling
+** Solução: sistemas de arquivos journaling
 
 - Registrar operações no diário antes de executá-las
 - Ao reiniciar: retomar ou desfazer operações pendentes
@@ -311,17 +311,17 @@ Funcionamento do diário (/write-ahead log/):
 3. Executar as operações nas estruturas reais do SF
 4. Remover a transação do diário ao concluir
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-Recuperação após queda:
+** Recuperação após queda
 
 - Transações confirmadas mas incompletas: reexecutar
 - Transações não confirmadas: descartar (rollback)
 - Operações devem ser idempotentes — podem ser repetidas
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-Benefício adicional: desempenho
+** Benefício adicional: desempenho
 
 - Escritas síncronas randômicas → escritas sequenciais no log
 - Log: buffer circular em seção separada do sistema de arquivos
@@ -334,33 +334,31 @@ Múltiplos sistemas de arquivos coexistem no mesmo computador
 - Windows: cada SF identificado por letra de unidade (C:, D:...)
 - UNIX: hierarquia única integrada pelo VFS
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-VFS — /Virtual File System/ (Sun Microsystems, 1986)
+** VFS — /Virtual File System/ (Sun Microsystems, 1986)
 
 - Abstrai a parte comum a todos os sistemas de arquivos
 - Interface superior (POSIX): open, read, write, lseek, ...
 - Interface inferior (VFS): funções implementadas por cada SF
 
+#+attr_latex: :width .6\linewidth
+[[./img/T_fig4.18.png]]
+
 #+latex: \vfill
 
-Objetos internos do VFS:
-
-- Superbloco: descreve um sistema de arquivos montado
-- V-node: representa um arquivo (equivalente ao i-node)
-- Tabela de montagem e tabela de descritores de arquivos
+** Objetos: Superbloco, V-node (/i-node/), Tabelas
 
 * Eficiência e Desempenho do Sistema de Arquivos
-
-Fatores que afetam a eficiência:
+** Fatores que afetam a eficiência
 
 - Tamanho dos ponteiros (32 ou 64 bits) limita tamanho máximo
 - Data de último acesso: leitura exige gravação no diretório
 - Pré-alocação de i-nodes melhora localidade no disco
 
-#+latex: \vfill
+#+latex: \vfill\pause
 
-Melhorias de desempenho:
+** Melhorias de desempenho
 
 - Cache no controlador: trilha inteira lida de uma vez
 - Escrita assíncrona: dados no cache; disco atualizado depois
@@ -368,36 +366,46 @@ Melhorias de desempenho:
 
 #+latex: \vfill
 
-Otimizações para acesso sequencial:
+** Otimizações para acesso sequencial
 
 - read-ahead: ler página solicitada e páginas seguintes
 - free-behind: liberar página anterior ao avançar na leitura
 
 * Cache de Buffer e Cache de Páginas
-
-Cache de buffer
-
+** Cache de buffer (em RAM não usada por processos)
 - Mantém blocos de disco supondo reutilização iminente
 - Gerenciado pelo SF; acesso por endereço físico de bloco
-
-#+latex: \vfill
-
-Cache de páginas
-
+** Cache de páginas (em RAM não usada por processos)
 - Armazena dados de arquivos como páginas (memória virtual)
 - Acesso por endereço virtual — mais eficiente que por bloco
 - Linux, Solaris, Windows: cache de páginas unificado
+** Left                                                              :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.35
+:END:
 
-#+latex: \vfill
+#+attr_latex: :width .95\linewidth
+[[./img/S_fig12.11.png]]
+** Right                                                             :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.60
+:END:
 
-Cache duplo — sem cache unificado:
-
+Cache duplo (de buffer e de páginas)
 - read()/write() passam pelo cache de buffer
-- mmap() usa o cache de páginas
-- Dados copiados entre os dois caches — desperdiça memória
+- mmap() usa o os dois caches
+Comportamento ruim
+- Dados do FS são replicados
+- Inconsistências entre os dois caches
 
-Cache de buffer unificado: mmap() e read()/write()
-usam o mesmo cache de páginas
+* Integração com cache unificado
+
+Cache unificado (somente de páginas)
+- read()/write()
+- mmap()
+
+#+attr_latex: :width .55\linewidth
+[[./img/S_fig12.12.png]]
 
 * Verificação de Consistência e Recuperação
 
