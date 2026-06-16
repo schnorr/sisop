@@ -1,0 +1,519 @@
+# -*- coding: utf-8 -*-
+# -*- mode: org -*-
+#+startup: beamer overview indent
+#+LANGUAGE: pt-br
+#+TAGS: noexport(n)
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+EXPORT_SELECT_TAGS: export
+
+#+Title: O Linux por dentro, Containers e eBPF
+#+Author: Prof. Lucas Mello Schnorr
+#+Date: \copyleft
+
+#+LaTeX_CLASS: beamer
+#+LaTeX_CLASS_OPTIONS: [xcolor=dvipsnames,10pt]
+#+OPTIONS: H:1 num:t toc:nil \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
+#+LATEX_COMPILER: xelatex
+#+LATEX_HEADER: \usepackage{fontspec}
+#+LATEX_HEADER: \setmonofont{DejaVu Sans Mono}
+#+LATEX_HEADER: \input{org-babel.tex}
+
+* Roteiro da Aula
+
+#+latex: \vfill
+
+Parte I -- O Kernel Linux por Dentro
+- Os subsistemas do kernel e onde cada conceito da disciplina aparece
+
+#+latex: \vfill\pause
+
+Parte II -- Containers e Namespaces
+- Como Podman, Docker e Kubernetes usam primitivas do kernel
+
+#+latex: \vfill\pause
+
+Parte III -- eBPF: Observabilidade do Kernel
+- Observar escalonamento, memória e E/S em tempo real
+
+#+latex: \vfill
+
+* Parte I \to O Kernel Linux por Dentro
+* O Kernel Linux como Mapa da Disciplina
+
+#+latex: \vfill
+
+#+BEGIN_EXAMPLE
+  ┌─────────────────────────────────────────────┐
+  │              Espaço de Usuário              │
+  │   bash   firefox   python   containers ...  │
+  └──────────────┬──────────────────────────────┘
+                 │  chamadas de sistema (syscalls)
+  ┌──────────────▼──────────────────────────────┐
+  │              Kernel Linux                   │
+  │                                             │
+  │  ┌──────────┐  ┌──────────┐  ┌───────────┐  │
+  │  │ Processos│  │ Memória  │  │    E/S    │  │
+  │  │  EEVDF   │  │  mm/vm   │  │ VFS/bloco │  │
+  │  └──────────┘  └──────────┘  └───────────┘  │
+  └──────────────┬──────────────────────────────┘
+                 │
+  ┌──────────────▼──────────────────────────────┐
+  │              Hardware                       │
+  └─────────────────────────────────────────────┘
+#+END_EXAMPLE
+
+#+latex: \vfill
+
+* Processos no Kernel: o CFS \to EEVDF (Kernel 6.6+)
+
+#+latex: \vfill
+
+- Escalonador padrão até Linux Kernel 6.5: Completely Fair Scheduler
+  - Implementado em =kernel/sched/fair.c= (~8.000 linhas)
+- Escalonador agora é o EEVDF (Earliest Eligible Virtual Deadline First)
+  - Selects the task with the earliest virtual deadline, preserving fairness
+
+#+latex: \vfill\pause
+
+- Fila de prontos: árvore rubro-negra ordenada por =vruntime=
+- O processo com menor =vruntime= executa a seguir
+  - O(1) com cache =rb_leftmost=
+- Quantum não é fixo: calculado a partir do número de processos e do =nice=
+
+#+latex: \vfill\pause
+
+- Topologia de hardware
+  - Possui domínios de escalonamento (SMT \rightarrow MC \rightarrow NUMA)
+- Migração inter-núcleo respeita hierarquia
+  - Tenta núcleo físico distinto antes de thread HT
+
+#+latex: \vfill
+
+* Gerência de Memória: o Subsistema mm
+
+#+latex: \vfill
+
+- =mm/= contém ~80 arquivos; os principais
+  - =memory.c=, =mmap.c=, =page_alloc.c=, =swap.c=
+
+#+latex: \vfill\pause
+
+** Estruturas centrais
+
+- =mm_struct=: o ``mapa de memória'' de um processo
+  - contém a lista de VMAs (Virtual Memory Area)
+- =vm_area_struct= (VMA): descreve cada região virtual
+  - (código, heap, mmap, pilha)
+- =page=: descritor de cada página física
+  - 64 bytes por página de 4 KB
+
+#+latex: \vfill\pause
+
+** Fluxo de uma falha de página
+
+Page fault \rightarrow =handle_mm_fault()= \rightarrow VMA identifica o tipo \rightarrow
+anônima (zera), arquivo (lê do page cache) ou swap (lê do disco)
+
+#+latex: \vfill
+
+* Sistemas de Arquivos: o VFS
+
+#+latex: \vfill
+
+- VFS (Virtual File System)
+  - camada de abstração que unifica todos os sistemas de arquivos
+
+#+latex: \vfill\pause
+
+** Quatro objetos abstratos do VFS
+
+| Objeto     | Análogo em disco     | O que representa               |
+|------------+----------------------+--------------------------------|
+| =superblock= | Superbloco           | Sistema de arquivos montado    |
+| =inode=      | i-node               | Arquivo (metadados)            |
+| =dentry=     | Entrada de diretório | Nome \to inode (cache)           |
+| =file=       | --                   | Arquivo aberto por um processo |
+
+#+latex: \vfill\pause
+
+- ext4, XFS, Btrfs, tmpfs, procfs
+  - todos implementam a mesma interface VFS
+- =open()= \to VFS \to ext4 \to bloco \to disco
+  - a pilha toda que estudamos
+
+#+latex: \vfill
+
+* OOM Killer: Gerência de Memória Sob Pressão
+
+#+latex: \vfill
+
+- Quando a memória física se esgota completamente
+  - kernel ativa o OOM killer
+- Seleciona um processo para matar, usa um =oom_score= por processo
+
+#+latex: \vfill\pause
+
+** Como o =oom_score= é calculado?
+
+- Proporcional ao uso de memória do processo (RSS + swap)
+- Penalidade ajustável por processo
+  - =/proc/<pid>/oom_score_adj= (-1000 a +1000)
+  - -1000 = imune ao OOM
+  - +1000 = primeiro a morrer
+
+#+latex: \vfill\pause
+
+** Ver ao vivo
+
+#+begin_src sh
+cat /proc/self/oom_score
+cat /proc/1/oom_score_adj        # init/systemd
+dmesg | grep -i "oom\|killed"    # histórico de vítimas
+#+end_src
+
+#+latex: \vfill
+
+* Parte II \to Containers e Namespaces
+* O Que é um Container?
+
+#+latex: \vfill
+
+- Um container *não é uma VM*: não há hipervisor, não há kernel separado
+- Um container é um *processo Linux com ilusão de isolamento*
+
+#+latex: \vfill\pause
+
+** Duas primitivas do kernel que tornam isso possível
+
+| Primitiva   | O que faz                                      | Introduzida  |
+|-------------+------------------------------------------------+--------------|
+| *Namespaces* | Isolamento: cada container vê seu próprio mundo | Linux 3.8    |
+| *cgroups*    | Limitação: CPU, memória e I/O por grupo         | Linux 2.6.24 |
+
+#+latex: \vfill\pause
+
+** Interfaces para esses mecanismos
+
+- Podman, Docker, Kubernetes, LXC
+  - São apenas interfaces de alto nível para essas duas primitivas
+- Todo conceito de processo, memória e E/S da disciplina aparece aqui
+
+#+latex: \vfill
+
+* Namespaces: Seis Dimensões de Isolamento
+
+#+latex: \vfill
+
+| Namespace | Flag          | O que isola                               |
+|-----------+---------------+-------------------------------------------|
+| PID       | =CLONE_NEWPID=  | Árvore de processos -- container vê PID 1 |
+| Mount     | =CLONE_NEWNS=   | Tabela de montagem -- sistema de arquivos |
+| Network   | =CLONE_NEWNET=  | Interfaces, rotas, firewall               |
+| UTS       | =CLONE_NEWUTS=  | Hostname e domínio                        |
+| IPC       | =CLONE_NEWIPC=  | Filas de mensagem, semáforos, SHM         |
+| User      | =CLONE_NEWUSER= | Mapeamento UID/GID (root dentro != fora)  |
+
+#+latex: \vfill\pause
+
+- Criados via =clone()= (processo novo) ou =unshare()= (processo existente)
+- Inspecionáveis em =/proc/<pid>/ns/= \to cada namespace é um arquivo
+
+#+latex: \vfill
+
+* Demo: Namespace PID na Prática
+
+#+latex: \vfill
+
+#+begin_src sh
+# Ver os namespaces do processo atual
+ls -la /proc/self/ns/
+
+# Criar um namespace PID isolado (requer root)
+sudo unshare --pid --fork --mount-proc bash
+
+# Dentro do novo namespace:
+ps aux          # vê apenas os seus processos; bash tem PID 1
+echo $$         # PID 1 aqui, mas outro PID lá fora
+
+# No terminal original:
+ps aux | grep bash   # processo ainda visível com PID real
+#+end_src
+
+#+latex: \vfill\pause
+
+- O mesmo processo tem dois PIDs: um dentro, outro fora do namespace
+- Exatamente o conceito de espaço de endereçamento virtual, mas para PIDs
+
+#+latex: \vfill
+
+* cgroups: Limitação de Recursos
+
+#+latex: \vfill
+
+- cgroups v2 (padrão desde kernel 5.x)
+  - hierarquia em =/sys/fs/cgroup/= (=mount | grep cgroup=)
+- Cada container é um subdiretório
+  - o kernel aplica os limites automaticamente
+
+#+latex: \vfill\pause
+
+** Controladores principais
+
+| Controlador  | O que limita                              |
+|--------------+-------------------------------------------|
+| =cpu=          | Cota de CPU (ex: 50% de 1 núcleo)        |
+| =memory=       | Limite de RAM + swap; dispara OOM local  |
+| =io=           | Largura de banda e IOPS por dispositivo  |
+| =pids=         | Número máximo de processos no grupo      |
+
+#+latex: \vfill\pause
+
+** Ver limites de um container Podman em execução
+
+#+begin_src sh
+podman run -d --name teste --memory=128m docker.io/library/nginx
+podman inspect teste --format '{{.State.Pid}}'
+CG=/sys/fs/cgroup/$(cat /proc/<<pid>>/cgroup | sed 's/^0:://')
+cat $CG/memory.max     # uso máximo de memória
+cat $CG/memory.current # uso atual de memória
+cat $CG/cpu.max        # limite de CPU
+cat $CG/cpu.weight     # prioridade de CPU
+cat $CG/pids.max       # limite de processos
+cat $CG/pids.current   # qtdade de processos
+#+end_src
+
+#+latex: \vfill
+
+* Copy-on-Write em Containers
+
+#+latex: \vfill
+
+- Imagens Docker são camadas sobrepostas
+  - cada =RUN= no Dockerfile é uma camada
+- O sistema de arquivos em overlay (=overlayfs=) implementa isso no kernel
+
+#+latex: \vfill\pause
+
+#+BEGIN_EXAMPLE
+  ┌─────────────────────────────┐  ← camada de escrita (container)
+  ├─────────────────────────────┤  ← camada da aplicação (imagem)
+  ├─────────────────────────────┤  ← camada do runtime
+  └─────────────────────────────┘  ← camada base (ubuntu, alpine...)
+       leitura: empilhadas
+       escrita: CoW para a camada superior
+#+END_EXAMPLE
+
+#+latex: \vfill\pause
+
+- O mesmo mecanismo CoW do =fork()= que estudamos
+  - agora para sistemas de arquivos
+- Múltiplos containers partilham as camadas de leitura
+  - sem duplicar dados em disco, salva espaço
+
+#+latex: \vfill
+
+* Parte III \to eBPF: Observabilidade do Kernel
+
+``Observabilidade''
+
+#+begin_quote
+Brendan Gregg (autor de BPF Performance Tools, antigamente engenheiro
+de performance no Netflix, atualmente atua com datacenter performance
+para o ChatGPT na OpenAI): ``You can't fix what you can't see.''
+#+end_quote
+
+#+latex: \vfill
+
+URL: https://www.brendangregg.com/
+
+#+attr_latex: :width .65\linewidth
+[[./img/linux_observability_tools.png]]
+
+* O que é eBPF?
+
+#+latex: \vfill
+
+- *eBPF* (extended Berkeley Packet Filter)
+  - mecanismo para executar programas *dentro do kernel* sem modificá-lo
+- Introduzido no Linux 4.x; usado em produção desde Linux 5.4+
+
+#+latex: \vfill\pause
+
+** O problema que resolve
+
+- Antes: para observar o kernel era preciso
+  - módulos de kernel (arriscado)
+  - ou =strace= (lento)
+- Com eBPF: programas verificados e compilados JIT
+  - rodam no kernel com overhead próximo a zero
+
+#+latex: \vfill\pause
+
+** Quem usa em produção hoje
+
+- Google, Meta, Netflix, Cloudflare, Microsoft
+  - Todos têm infraestrutura baseada em eBPF
+  - https://en.wikipedia.org/wiki/EBPF#Adoption
+- Cilium (Kubernetes networking), Falco (segurança), Pixie (observabilidade)
+
+#+latex: \vfill
+
+* Como o eBPF funciona
+
+#+latex: \vfill
+
+#+BEGIN_EXAMPLE
+  Código C restrito
+        │
+        ▼ compilador LLVM/clang
+  Bytecode eBPF
+        │
+        ▼ bpf() syscall
+  Verificador do kernel
+  (prova: termina, sem null deref, sem loops infinitos)
+        │
+        ▼ compilador JIT
+  Código nativo \to anexado a um hook
+#+END_EXAMPLE
+
+#+latex: \vfill\pause
+
+** Tipos de hooks
+
+- *kprobes*: qualquer função do kernel (entrada e retorno)
+- *tracepoints*: pontos estáticos e estáveis no kernel
+- *uprobes*: funções em espaço de usuário
+- *XDP / TC*: pacotes de rede antes do stack TCP/IP
+
+#+latex: \vfill
+
+* bpftrace: eBPF de (quase) uma linha
+
+#+latex: \vfill
+
+#+begin_src sh
+# Contar chamadas de sistema execve() por nome de processo
+sudo bpftrace -e \
+  'tracepoint:syscalls:sys_enter_execve { @[comm] = count(); }'
+
+# Medir latência de leitura de disco (histograma)
+sudo bpftrace -e '
+tracepoint:block:block_rq_issue {
+    @start[args->sector] = nsecs;
+}
+tracepoint:block:block_rq_complete /@start[args->sector]/ {
+    @lat = hist((nsecs - @start[args->sector]) / 1000);
+    delete(@start[args->sector]);
+}'
+
+# Ver falhas de página por processo
+sudo bpftrace -e \
+  'software:page-faults:1 { @[comm] = count(); }'
+
+# Rastrear o escalonador: trocas de contexto por processo
+sudo bpftrace -e \
+  'tracepoint:sched:sched_switch { @[args->next_comm] = count(); }'
+#+end_src
+
+#+latex: \vfill
+
+* Demonstração
+
+#+latex: \vfill
+
+#+begin_src sh
+# Terminal 1 -- falhas de página em tempo real
+sudo bpftrace -e \
+  'software:page-faults:1 { @[comm] = count(); }
+   interval:s:2 { print(@); clear(@); }'
+
+# Terminal 2 -- trocas de contexto (escalonador)
+sudo bpftrace -e \
+  'tracepoint:sched:sched_switch {
+     @[args->prev_comm, args->next_comm] = count();
+   } interval:s:3 { print(@); clear(@); }'
+
+# Terminal 3 -- chamadas de sistema de E/S
+sudo bpftrace -e \
+  'tracepoint:syscalls:sys_enter_read,
+   tracepoint:syscalls:sys_enter_write { @[comm] = count(); }'
+
+# Gerar carga para observar
+stress-ng --cpu 4 --vm 2 --io 2 --timeout 30
+#+end_src
+
+#+latex: \vfill
+
+* Mapa do semestre visto do eBPF
+
+#+latex: \vfill
+
+| Conceito da disciplina   | Hook eBPF que o revela                     |
+|--------------------------+--------------------------------------------|
+| Escalonamento (EEVDF)    | =tracepoint:sched:sched_switch=              |
+| Troca de contexto        | =tracepoint:sched:sched_wakeup=              |
+| Falha de página          | =software:page-faults=                       |
+| TLB miss                 | =software:page-faults:1= + =perf:cache-misses= |
+| Leitura/escrita em disco | =kprobe:blk_account_io_start=                |
+| Chamadas de sistema      | =tracepoint:syscalls:sys_enter_*=            |
+| Criação de processos     | =tracepoint:sched:sched_process_fork=        |
+| E/S de rede              | =kprobe:tcp_sendmsg=, =kprobe:tcp_recvmsg=     |
+
+#+latex: \vfill\pause
+
+- Tudo que estudamos no semestre é observável em tempo real
+- O kernel é transparente para quem sabe onde olhar
+
+#+latex: \vfill
+
+* Síntese: os três mundos
+
+#+latex: \vfill
+
+#+ATTR_LATEX: :booktabs t
+| Camada     | Tecnologia     | Conceito da disciplina          |
+|------------+----------------+---------------------------------|
+| Kernel     | EEVDF, mm, VFS | Escalonamento, memória, E/S     |
+| Isolamento | Namespaces     | Processos, IPC, sistemas de arq |
+| Limitação  | cgroups        | Escalonamento, gerência de mem  |
+| Observação | eBPF/bpftrace  | Tudo -- em tempo real           |
+
+#+latex: \vfill\pause
+
+** A mensagem final
+
+- Sistemas Operacionais não é teoria \to é o que roda embaixo de tudo
+- O kernel Linux implementa cada conceito estudado
+  - Containers o expõem
+  - eBPF o revela
+- As ferramentas vistas são usadas em produção
+  - Google, Netflix, Meta, OpenAI, ...
+
+#+latex: \vfill
+
+* Referências e Próximos Passos
+
+#+latex: \vfill
+
+** Para continuar aprendendo
+
+- =ebpf.io= -- documentação oficial, tutoriais e lista de ferramentas
+- Gregg, B. /BPF Performance Tools/. Addison-Wesley, 2019. (o livro de referência)
+- =bpftrace= one-liners
+  - https://github.com/bpftrace/bpftrace/blob/master/docs/tutorial_one_liners.md
+- Kernel source: https://elixir.bootlin.com
+  - Navegação online do código do Linux
+
+#+latex: \vfill\pause
+
+** Comandos para explorar hoje
+
+#+begin_src bash :eval no
+sudo apt install bpftrace bcc-tools stress-ng   # Ubuntu/Debian
+sudo bpftrace -l 'tracepoint:sched:*'           # listar hooks
+sudo opensnoop-bpfcc                             # arquivos sendo abertos
+sudo execsnoop-bpfcc                             # processos sendo criados
+sudo biolatency-bpfcc                            # latência de disco
+#+end_src
+
+#+latex: \vfill
