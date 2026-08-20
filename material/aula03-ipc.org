@@ -74,7 +74,7 @@ int main() {
 ** Motivações para processos cooperativos
 - Compartilhamento de informações
 - Aumento de velocidade com paralelismo
-- Modularidade do sistemaL
+- Modularidade do sistema
 #+latex: \pause
 
 ** Left                                                              :BMCOL:
