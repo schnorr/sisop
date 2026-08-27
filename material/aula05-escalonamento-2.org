@@ -562,7 +562,7 @@ tribble(~name, ~tempo, ~chegada,
 
 #+latex: \vfill\space
 
-- Sem preempção (FCFS): (0+8+12+21) = 41/4 = média de 10.25ms
+- Sem preempção (FCFS): (0+7+10+18) = 35/4 = média de 8.75ms
   
 #+begin_src R :results file output graphics :file (org-babel-temp-file "figure" ".png") :exports results :width 600 :height 40 :session *R* :center nil  
 tribble(~name, ~tempo, ~chegada,
