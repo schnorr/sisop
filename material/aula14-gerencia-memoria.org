@@ -42,12 +42,13 @@ A memória é essencial para a operação de sistemas modernos
 
 #+latex: \vfill
 
-Dois objetivos principais da gerência de memória:
+Requisitos da gerência de memória:
 
-- Desempenho: hierarquia registradores–cache–memória–disco
-- Proteção: SO deve proteger processos uns dos outros
-  - Expor memória física a processos tem desvantagens graves
+- Relocação: programa pode ser carregado em qualquer posição
+- Proteção: isolar processos entre si e do SO
   - Programas podem derrubar o SO intencionalmente ou por acidente
+- Compartilhamento: acesso controlado a áreas comuns
+  - Ex: bibliotecas compartilhadas, memória compartilhada (IPC)
 
 * Níveis de Memória
 
@@ -56,7 +57,7 @@ A CPU acessa diretamente registradores e memória principal
 - Registradores: internos à CPU, acessados em um ciclo de relógio
 - Cache: no chip da CPU, gerenciada automaticamente pelo hardware
 - Memória principal: acessada via barramento, pode levar muitos ciclos
-  - CPU pode ser interrompida enquanto aguarda dado da memória
+  - CPU fica parada (/stall/) enquanto aguarda dado da memória
 
 #+latex: \vfill
 
@@ -116,8 +117,9 @@ Proteção com dois registradores de hardware:
 
 - Registrador base: menor endereço físico válido do processo
 - Registrador limite: tamanho do intervalo de endereços válidos
-- Hardware verifica cada endereço gerado pelo processo de usuário
+- Hardware compara cada endereço com base e base+limite
   - Violação → interceptação para o SO (erro fatal)
+- Endereços já são físicos: há proteção, mas não relocação
 
 
 ** Right                                                             :BMCOL:
@@ -127,12 +129,17 @@ Proteção com dois registradores de hardware:
 
 [[./img/S_fig8.1.png]]
 
-* Ilustrando a desvantagem da proteção com registradores
-** Desvantagem
+* Registradores Base e Limite: Observações
 
-Apenas o SO pode modificar os registradores (instrução privilegiada)
+- Apenas o SO carrega base e limite (instrução privilegiada)
+- Despachante recarrega os registradores a cada troca de contexto
+- Em modo kernel, o SO tem acesso irrestrito à memória
 
-Necessidade de adição e comparação a cada acesso à memória
+#+latex: \vfill
+
+Custo: duas comparações a cada acesso à memória
+
+- Com relocação dinâmica (MMU), também uma adição por acesso
 
 #+latex: \vfill
 
@@ -174,6 +181,7 @@ Vinculação de endereços em tempos distintos:
 - Tempo de compilação: posição na memória conhecida antecipadamente
 - Tempo de carga: endereço inicial só é conhecido ao carregar
 - Tempo de execução: processo pode mudar de posição durante execução
+  - Requer hardware (MMU); usado pela maioria dos SOs
 
 ** Right                                                             :BMCOL:
 :PROPERTIES:
@@ -182,33 +190,32 @@ Vinculação de endereços em tempos distintos:
 
 [[./img/S_fig8.3.png]]
 
-* Carregadores: Absoluto, Relocador e Dinâmico
+* Ligador e Carregadores
 
-Três tipos de carregadores, correspondentes aos momentos de vinculação:
+Ligador (/linkage editor/): combina módulos-objeto e bibliotecas
 
-#+latex: \vfill
-
-- Carregador absoluto (tempo de compilação)
-  - Programa gerado com endereços físicos fixos
-  - Deve sempre ser carregado no mesmo endereço
+- Resolve referências entre módulos e gera o módulo de carga
+- Vinculação estática: rotinas de biblioteca copiadas no executável
 
 #+latex: \vfill
 
-- Carregador relocador (tempo de carga)
-  - Compilador gera código relocável
-  - Endereços ajustados no carregamento, somando o endereço base
+Carregador: copia o módulo de carga para a memória
+
+- Carregador absoluto (vinculação em tempo de compilação)
+  - Endereços físicos fixos; sempre carregado no mesmo endereço
+- Carregador relocador (vinculação em tempo de carga)
+  - Soma o endereço base às referências relocáveis
+- Vinculação em tempo de execução: carregador apenas copia
+  - Tradução feita a cada acesso pelo hardware (MMU)
 
 #+latex: \vfill
 
-- Carregador dinâmico (tempo de execução)
-  - Rotinas carregadas conforme necessário
-  - Base para carga dinâmica e vinculação dinâmica
+Carga e vinculação dinâmicas: rotinas trazidas sob demanda (adiante)
 
 * -- Endereços Lógicos e Físicos
 
 ** Conceito
 - Endereço lógico: gerado pela CPU (também chamado endereço virtual)
-  - Memória Virtual (espaço de endereçamento virtual)
 - Endereço físico: visto pela unidade de memória (no barramento)
 
 #+latex: \vfill
@@ -234,6 +241,7 @@ Esquema simples: registrador de relocação
 
 - Valor do registrador somado a cada endereço gerado pelo processo
 - Ex: base=14000, acesso ao endereço 346 → endereço físico 14346
+- Limite verificado sobre o endereço lógico, antes da soma
 
 #+attr_latex: :width .5\linewidth
 [[./img/S_fig8.4.png]]
@@ -286,7 +294,8 @@ Vinculação dinâmica: adiada até o tempo de execução
 
 - Todos os processos compartilham uma única cópia do código
 - Facilita atualização de bibliotecas (correções de bugs)
-- Também chamado de bibliotecas compartilhadas; requer suporte do SO
+- Também chamado de bibliotecas compartilhadas
+- Requer SO: só ele libera a mesma área a processos protegidos
 
 * -- Troca de Processos: Conceito e Motivação
 
@@ -309,6 +318,7 @@ Estratégia /swapping/:
 
 - Traz cada processo completo à memória, executa por um tempo
 - Devolve ao disco; processos ociosos não ocupam memória
+- Ao voltar, pode ocupar outra posição: exige relocação dinâmica
 
 * Troca de Processos: Permuta-Padrão
 
@@ -325,6 +335,7 @@ Permuta-padrão não usada em SO modernos
 - Requer muito tempo, fornece pouco tempo útil de execução
 - Versões modificadas no UNIX, Linux e Windows
   - Ativada apenas quando memória livre cai abaixo de um limite
+- /Swap/ atual do Linux troca páginas, não processos inteiros
 
 #+attr_latex: :width .3\linewidth
 [[./img/S_fig8.5.png]]
