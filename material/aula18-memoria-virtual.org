@@ -27,6 +27,7 @@
 - Falta de página
   - Da TLB à falta de página
   - Tratamento: visão geral e detalhes
+  - Observando faltas de página com =time=
   - Desempenho: tempo de acesso efetivo
   - Localidade de referência
 - Cópia na escrita (/copy-on-write/)
@@ -294,6 +295,54 @@ Sequência de passos no tratamento de falta de página (Tanenbaum)
 - Rotina recarrega registradores; retorna ao espaço do usuário
 - Execução continua como se nenhuma falta tivesse ocorrido
 - Passos 5 e 6 (vítima, quadro sujo): assunto da próxima aula
+
+* Observando Faltas de Página com =time=
+
+Programa reserva 100 MB com =mmap= e escreve um byte por página
+
+#+BEGIN_SRC text
+$ gcc aula18-faltas.c -o faltas
+$ /usr/bin/time -v ./faltas 100 0    # reserva, mas não toca
+  Maximum resident set size (kbytes): 1600
+  Major (requiring I/O) page faults: 0
+  Minor (reclaiming a frame) page faults: 92
+$ /usr/bin/time -v ./faltas 100 1    # toca as 25.600 páginas
+  Maximum resident set size (kbytes): 103520
+  Major (requiring I/O) page faults: 0
+  Minor (reclaiming a frame) page faults: 25688
+#+END_SRC
+
+- Reservar não aloca quadros: paginação sob demanda
+- Cada página tocada causa uma falta (25.688 \approx 25.600 + carga)
+- Falta menor (/minor/): resolvida sem E/S (ex: quadro zerado)
+- Falta maior (/major/): exige leitura do disco (custo de ms)
+
+** Programa usado no exemplo                                     :noexport:
+
+#+BEGIN_SRC C :tangle aula18-faltas.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/mman.h>
+int main(int argc, char **argv)
+{
+  size_t mb = argc > 1 ? atol(argv[1]) : 100;  /* MB a reservar */
+  int toca = argc > 2 ? atoi(argv[2]) : 1;     /* 1: escreve em cada página */
+  size_t tam = mb * 1024 * 1024;
+  long pag = sysconf(_SC_PAGESIZE);
+  char *v = mmap(NULL, tam, PROT_READ | PROT_WRITE,
+                 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (v == MAP_FAILED) return 1;
+  madvise(v, tam, MADV_NOHUGEPAGE);  /* força páginas de 4 KB */
+  if (toca)
+    for (size_t i = 0; i < tam; i += pag)
+      v[i] = 1;
+  printf("%zu MB, %zu páginas de %ld bytes, tocadas: %s\n",
+         mb, tam / pag, pag, toca ? "sim" : "não");
+  munmap(v, tam);
+  return 0;
+}
+#+END_SRC
 
 * Desempenho da Paginação sob Demanda
 
