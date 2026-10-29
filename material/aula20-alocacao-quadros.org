@@ -21,24 +21,26 @@
 - Número mínimo de quadros por processo
 - Algoritmos de alocação de quadros
   - Alocação igualitária
-  - Alocação proporcional
-  - Alocação por prioridade
+  - Alocação proporcional e por prioridade
   - Alocação global versus local
-- Thrashing (Ultrapaginação)
+- Thrashing
   - Conceito e causas
   - Efeito sobre o uso de CPU
-- Mecanismos para controlar /Thrashing/
-  - Modelo do conjunto de trabalho
-    - Janela do conjunto de trabalho
-    - Aproximando o conjunto de trabalho
+- Modelo do conjunto de trabalho
+  - Janela do conjunto de trabalho
+- Conjunto de trabalho como política de substituição
+  - Aproximação pelo tempo virtual
   - Algoritmo WSClock (Tanenbaum)
-  - Frequência de falta de página como critério
-  - Controle de carga
+- Controle de carga
+  - Conjunto de trabalho e pré-paginação
+  - Frequência de falta de página (PFF)
+  - Suspensão de processos
+- Na prática: Windows e Solaris
 
 * Número Mínimo de Quadros por Processo
 
 - Alocar quadros a processos exige respeitar um mínimo absoluto
-- Abaixo do mínimo: taxa de erros de página cresce, execução trava
+- Abaixo do mínimo: taxa de faltas de página cresce, execução trava
 - Instrução interrompida por falta de página deve ser reiniciada
 - Logo, todos os quadros que uma instrução referencia devem estar presentes
 
@@ -96,6 +98,11 @@
 - Variante por prioridade: proporção baseada em prioridade, não tamanho
   - Processo de alta prioridade recebe mais quadros para rodar mais rápido
 
+#+latex: \vfill
+
+- Tamanho virtual \neq páginas que o processo realmente usa
+  - Medida melhor: conjunto de trabalho (adiante)
+
 * Alocação Global versus Local
 
 - De qual processo retirar quadros ao substituir uma página?
@@ -113,6 +120,7 @@
 - Número de quadros por processo varia dinamicamente
 - Taxa de faltas de página do processo depende de outros processos
 - Vantagem: maior throughput geral; método mais usado na prática
+- Risco: processo com muitas faltas rouba quadros dos demais
   
 #+latex: \vfill
 
@@ -128,20 +136,15 @@
 #+latex: \vfill
 
 - Thrashing: processo gasta mais tempo paginando do que executando
+  - Também chamado de ultrapaginação ou atividade improdutiva
 - Localidade: processo usa ativamente apenas um subconjunto de páginas
   - Cada fase de execução possui sua localidade de referência
   - Thrashing ocorre quando quadros alocados < tamanho da localidade atual
 
-#+latex: \vfill\pause
-
-- Pré-paginação: carregar conjunto de trabalho antes de retomar processo
-  - Evita rajada de faltas de página ao reiniciar execução
-  - Modelo do conjunto de trabalho formaliza essa ideia
-
 * Thrashing: Efeito sobre o Uso de CPU
 
 - Utilização da CPU cai → scheduler aumenta multiprogramação
-  - Novo processo retira quadros dos processos em execução
+  - Substituição global: novo processo retira quadros dos demais
   - Mais processos geram mais faltas de página
 
 #+latex: \vfill
@@ -156,7 +159,7 @@
 - Curva utilização × multiprogramação mostra ponto de inflexão
   - Antes do pico: mais processos aumentam utilização da CPU
   - Após o pico: thrashing reduz utilização abruptamente
-  - *Atividade Improdutiva* ocorre após o pico, devemos evitá-la
+  - *Thrashing* ocorre após o pico, devemos evitá-lo
 
 #+latex: \vfill\pause
 
@@ -174,7 +177,7 @@
 [[./img/S_fig9.19.png]]
 
 Se não alocarmos quadros suficientes para acomodar o tamanho da
-localidade corrente, o processo entrará em *atividade improdutiva*, já
+localidade corrente, o processo entrará em *thrashing*, já
 que não pode manter na memória todas as páginas que está usando
 ativamente.
 
@@ -207,21 +210,12 @@ ativamente.
   - A cada referência: nova referência entra, referência mais velha sai
   - Página permanece no conjunto enquanto estiver dentro da janela
 
-* Evitando Thrashing com o Conjunto de Trabalho
+* -- Conjunto de Trabalho como Política de Substituição
 
-- Demanda total de quadros: D = \sum WSS_{i}
-  - WSS_{i}: tamanho do conjunto de trabalho do processo i
-    - WSS é /Working Set Size/
-  - D > m (quadros disponíveis) \rightarrow thrashing iminente
+Qual página remover? A que está fora do conjunto de trabalho
 
-#+latex: \vfill\pause
+#+latex: \vfill
 
-** Estratégia: alocar WSS_{i} quadros a cada processo
-- Se sobram quadros, iniciar novo processo
-- Se D > m, suspender um processo e redistribuir seus quadros
-  - Otimiza a utilização da CPU
-
-* Aproximando o Conjunto de Trabalho
 
 - Manter janela exata é caro (registro de cada referência individual)
   - Abandonamos a ideia de rastrear as \Delta refs. mais recentes
@@ -252,12 +246,12 @@ ativamente.
 
 * Algoritmo WSClock
 
-- Melhoria do conjunto de trabalho baseada no algoritmo do relógio
+- Melhoria do conjunto de trabalho baseada no relógio (aula 19)
   - Evita varrer a tabela de páginas inteira
 - Lista circular de quadros; ponteiro avança a cada falta de página
  - Cada entrada:  1/ bit de referência e 2/ instante do último uso
 
-#+attr_latex: :width .3\linewidth  
+#+attr_latex: :width .25\linewidth
 [[./img/T_fig3.20a.png]]
 
 
@@ -276,13 +270,34 @@ ativamente.
   - Nenhuma escrita escalonada: todas no conjunto de trabalho;
     usar qualquer página limpa encontrada ou substituir a atual
 
+* -- Conjunto de Trabalho como Controle de Carga
+
+- Demanda total de quadros: D = \sum WSS_{i}
+  - WSS_{i}: tamanho do conjunto de trabalho do processo i
+    - WSS é /Working Set Size/
+  - D > m (quadros disponíveis) \rightarrow thrashing iminente
+
+#+latex: \vfill\pause
+
+** Estratégia: alocar WSS_{i} quadros a cada processo
+- Se sobram quadros, iniciar novo processo
+- Se D > m, suspender um processo e redistribuir seus quadros
+  - Otimiza a utilização da CPU
+- É a alocação proporcional feita pelo que o processo usa de fato
+
+#+latex: \vfill
+
+** Pré-paginação
+- Carregar o conjunto de trabalho antes de retomar um processo
+- Evita a rajada de faltas de página ao reiniciar a execução
+
 * Frequência de Falta de Página como Critério
 
 - Abordagem direta: controlar thrashing pela taxa de faltas de página
 - Taxa de faltas do processo indica se quadros estão adequados
   - Page-Fault Frequency (PFF)
 
-#+attr_latex: :width .55\linewidth  
+#+attr_latex: :width .45\linewidth
 [[./img/S_fig9.21.png]]
 
 #+latex: \vfill
@@ -294,13 +309,13 @@ ativamente.
 #+latex: \vfill
 
 - Medição: contar faltas por segundo; suavizar com média temporal
-- Taxa de faltas tende a cair quando mais quadros são alocados
-  - Válido para LRU e a maioria dos algoritmos práticos (PFF)
+- Premissa: taxa de faltas cai quando mais quadros são alocados
+  - Vale para algoritmos de pilha, como o LRU (aula 19)
+  - Com FIFO, a anomalia de Bélády pode quebrar a premissa
 
 #+latex: \vfill
 
-- Se taxa sobe e não há quadros livres: suspender um processo
-  - Liberar seus quadros e redistribuir aos processos com alta taxa
+- Taxa alta e nenhum quadro livre: controle de carga (a seguir)
 
 * Controle de Carga
 
@@ -308,9 +323,6 @@ ativamente.
   - Conjunto de Trabalho parece simplista para controlar a ativ. improdutiva
 - PFF indica que alguns processos precisam de mais memória
   - Mas nenhum processo precisa de menos memória ;(
-  
-#+attr_latex: :width .35\linewidth  
-[[./img/S_fig9.21.png]]
   
 #+latex: \vfill\pause
 
@@ -321,6 +333,7 @@ ativamente.
 
 #+latex: \vfill
 
+- Troca de processos (aula 14) volta como mecanismo de controle de carga
 - Reminiscente do escalonamento de dois níveis
   - Escalonador de curto prazo: gerencia processos na memória
   - Escalonador de médio prazo: troca processos entre memória e disco
@@ -331,11 +344,29 @@ ativamente.
   - Grau de multiprogramação (CPU não deve ficar ociosa)
   - Tipo do processo: limitado por CPU ou por E/S
 
+* Na Prática: Windows e Solaris
+
+Windows: conjunto de trabalho mínimo e máximo por processo
+
+- Abaixo do máximo: falta recebe quadro da lista de quadros livres
+- No máximo: substituição LRU local (entre seus próprios quadros)
+- Pouca memória livre: corte automático do conjunto de trabalho
+  - Processos acima do mínimo perdem páginas até o mínimo
+
+#+latex: \vfill
+
+Solaris: reserva de quadros livres com limite lotsfree
+
+- Verifica a memória livre quatro vezes por segundo
+- Abaixo de lotsfree (1/64 da memória): inicia remoção de páginas
+- Remoção semelhante à segunda chance, com dois ponteiros
+
 * Referências
 
-- Silberchatz
+- Silberschatz
   - Cap. 9, Sec. 9.5 (Alocação de Quadros)
   - Cap. 9, Sec. 9.6 (Thrashing e Conjunto de Trabalho)
+  - Cap. 9, Sec. 9.10 (Windows e Solaris)
 - Tanenbaum
   - Cap. 3, Sec. 3.4.8 (Algoritmo do Conjunto de Trabalho)
   - Cap. 3, Sec. 3.4.9 (WSClock)
