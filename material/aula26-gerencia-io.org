@@ -6,8 +6,9 @@
 #+EXPORT_EXCLUDE_TAGS: noexport
 #+EXPORT_SELECT_TAGS: export
 
-#+Title: Gerência de Entrada e Saída
-#+Author: Prof. Lucas Mello Schnorr
+#+Title: Sistemas Operacionais
+#+Subtitle: Gerência de E/S
+#+Author: Prof. Lucas Mello Schnorr (UFRGS)
 #+Date: \copyleft
 
 #+LaTeX_CLASS: beamer
@@ -15,24 +16,24 @@
 #+OPTIONS: H:1 num:t toc:nil \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
 #+LATEX_HEADER: \input{org-babel.tex}
 
-* Estrutura
+* Estrutura da aula
 
-- Visão Geral de E/S
-  - Dispositivos de E/S: Tipos e Velocidades
-  - Controladores de Dispositivo e Registradores
+- Visão geral de E/S
+  - Dispositivos: diversidade e velocidades
+  - Controladores de dispositivo e registradores
 - Hardware de E/S
-  - Polling
+  - E/S programada (polling)
   - Interrupções
-  - Acesso Direto à Memória (DMA)
-  - Comparação: E/S Programada, por Interrupção e DMA
+  - Acesso direto à memória (DMA)
+  - Comparação dos três mecanismos
+- Camadas do software de E/S
+  - Drivers de dispositivo
+  - Software independente de dispositivo
+  - Buffering e escalonamento de E/S
 - Interface de E/S da aplicação
-  - Camadas do Software de E/S
-  - Tratadores de Interrupção
-  - Drivers de Dispositivo
-  - Software Independente de Dispositivo
-- Subsistema de E/S do kernel
-  - Buffering, Caching e Spooling
-  - E/S Bloqueante e Não-Bloqueante
+  - Dispositivos de blocos, de caracteres e de rede
+  - Relógios e temporizadores
+  - E/S bloqueante, não bloqueante e assíncrona
 
 * -- Visão Geral de E/S
 
@@ -51,17 +52,13 @@
 - Abstrair diversidade de dispositivos em interface comum
 - Controlar operações, tratar erros e gerenciar recursos de E/S
 
-* Dispositivos de E/S: Tipos e Velocidades
+* Dispositivos de E/S: Diversidade e Velocidades
 
-** Dispositivos de bloco
-- Armazenam dados em blocos de tamanho fixo, cada um com endereço
-- Leitura e escrita independentes por bloco
-- Exemplos: disco rígido, SSD, pendrive
+Dispositivos muito diferentes entre si
 
-** Dispositivos de caractere
-- Entregam ou aceitam fluxo de caracteres
-- Sem estrutura de bloco endereçável
-- Exemplos: teclado, mouse, impressora, placa de rede serial
+- Armazenamento (discos, SSD), transmissão (rede) e interface
+  humana (teclado, mouse, monitor)
+- Classificação por modo de acesso: blocos ou caracteres (adiante)
 
 #+latex: \vfill
 
@@ -148,6 +145,26 @@ Mecanismos de interação com o hardware de E/S
 :BEAMER_env: ignoreheading
 :END:
 
+* Na Prática: =/proc/interrupts=
+
+Contagem de interrupções por dispositivo (soma de todas as CPUs)
+
+#+BEGIN_SRC text
+ IRQ   Interrupções  Origem
+   1:            67  IR-IO-APIC 1-edge i8042           (teclado)
+  12:           137  IR-IO-APIC 12-edge i8042          (mouse)
+ 127:          6529  IR-PCI-MSI-0000:00:1f.6 enp0s31f6 (rede)
+ 144:           203  IR-PCI-MSIX-0000:02:00.0 nvme0q0  (SSD: administração)
+ 146:         23561  IR-PCI-MSIX-0000:02:00.0 nvme0q1  (SSD: fila 1)
+ 147:          8336  IR-PCI-MSIX-0000:02:00.0 nvme0q2  (SSD: fila 2)
+ 148:         29452  IR-PCI-MSIX-0000:02:00.0 nvme0q3  (SSD: fila 3)
+ ...
+#+END_SRC
+
+- Cada controlador tem sua linha (IRQ) e seu tratador
+- SSD NVMe: várias filas de requisições, cada uma com sua interrupção
+  - Requisições de várias CPUs atendidas em paralelo
+
 * Acesso Direto à Memória (DMA)
 
 - DMA elimina a necessidade da CPU transferir dados byte a byte
@@ -178,6 +195,7 @@ Mecanismos de interação com o hardware de E/S
 7. Controlador DMA interrompe a CPU: transferência concluída
 #+latex: }
    
+
 * Comparação: E/S Programada, por Interrupção e DMA
 
 | Aspecto             | E/S Programada | Por Interrupção | DMA             |
@@ -293,6 +311,7 @@ Quando ocorre uma interrupção, o tratador executa as seguintes etapas:
    - Ocultar diferenças de tamanho de setor entre dispositivos
 #+latex: }
      
+
 * Buffering
 - Área de memória para dados em trânsito entre entidades
   - Várias estratégias
@@ -309,13 +328,36 @@ Quando ocorre uma interrupção, o tratador executa as seguintes etapas:
 #+attr_latex: :width .6\linewidth
 [[./img/T_fig5.16.png]]
 
+* Escalonamento de E/S
+
+Ordem em que as aplicações pedem E/S raramente é a melhor
+
+- Ex: braço do disco no início; pedidos no fim, no início e no meio
+  - Atender na ordem início, meio, fim reduz o deslocamento do braço
+- Kernel mantém uma fila de requisições por dispositivo
+  - Escalonador de E/S reordena a fila
+
+#+latex: \vfill
+
+Objetivos do escalonamento de E/S
+
+- Desempenho geral: menos tempo de busca no disco
+- Justiça entre processos; tempo médio de espera menor
+- Prioridade a pedidos urgentes (ex: memória virtual)
+
+#+latex: \vfill
+
+Cache \neq buffer: cache guarda uma cópia; buffer pode ter a única
+
+- Algoritmos de escalonamento de disco: aula 27
+
 * Spooling (Simultaneous Peripheral Operations On-Line)            :noexport:
 - Buffer para dispositivos que não aceitam fluxos intercalados
 - Exemplo clássico: impressora
 - Processos escrevem no spool; daemon lê e envia ao dispositivo
 - Evita intercalação de saídas de múltiplos processos
 
-* Dispositivos de Blocos e de Caracteres
+* -- Dispositivos de Blocos e de Caracteres
 
 ** Tipos
 - Dispositivos de bloco -- transferem dados em blocos
@@ -329,9 +371,9 @@ Quando ocorre uma interrupção, o tratador executa as seguintes etapas:
 
 ** Características
 
-- I/O bruto (/raw I/O/): acesso direto ao dispositivo
+- E/S bruta (/raw I/O/): acesso direto ao dispositivo
   - Como array linear de blocos, sem sistema de arquivos
-- I/O direto (/direct I/O/): desabilita buffering e travamento do SO
+- E/S direta (/direct I/O/): desabilita buffering e travamento do SO
   - Útil para SGBDs que gerenciam seu próprio buffer
 - Arquivos mapeados em memória
   - Acesso a disco via array de bytes na RAM
@@ -341,7 +383,7 @@ Quando ocorre uma interrupção, o tratador executa as seguintes etapas:
 
 #+latex: \vfill
 
-- I/O de rede difere do de disco: endereçamento e desempenho distintos
+- E/S de rede difere do de disco: endereçamento e desempenho distintos
 - Interface padrão: sockets de rede (UNIX, Windows)
 - Operações básicas: criar socket, conectar, escutar, enviar, receber
 
@@ -411,7 +453,7 @@ Três funções básicas fornecidas pelo hardware:
 ** E/S Não-Bloqueante
 - Retorna imediatamente com dados disponíveis (pode ser 0)
 - Processo continua executando
-- Exemplo: read() com =O_NONBLOCK= \to open()
+- Exemplo: =open()= com =O_NONBLOCK=; =read()= não espera dados
 ** Assíncrona
 - Retorna imediatamente
 - E/S prossegue em segundo plano
@@ -420,17 +462,12 @@ Três funções básicas fornecidas pelo hardware:
 
 * Referências
 
-- Silberschatz, Galvin, Gagne. Fundamentos de Sistemas Operacionais,
-  9ª edição. LTC Editora, 2015.
-  - Capítulo 13: Subsistemas de E/S
-  - Seção 13.1: Visão geral de E/S
-  - Seção 13.2: Hardware de E/S
-  - Seção 13.3: Interface de E/S do kernel de aplicativo
-
-#+latex: \vfill
-
-- Tanenbaum, Bos. Sistemas Operacionais Modernos. Pearson.
-  - Capítulo 5: Entrada/Saída
-  - Seção 5.1: Princípios do hardware de E/S
-  - Seção 5.2: Princípios do software de E/S
-  - Seção 5.3: Camadas do software de E/S
+- Silberschatz
+  - Cap. 13, Sec. 13.1 (Visão geral de E/S)
+  - Cap. 13, Sec. 13.2 (Hardware de E/S)
+  - Cap. 13, Sec. 13.3 (Interface de E/S da aplicação)
+  - Cap. 13, Sec. 13.4 (Subsistema de E/S do kernel)
+- Tanenbaum
+  - Cap. 5, Sec. 5.1 (Princípios do hardware de E/S)
+  - Cap. 5, Sec. 5.2 (Princípios do software de E/S)
+  - Cap. 5, Sec. 5.3 (Camadas do software de E/S)

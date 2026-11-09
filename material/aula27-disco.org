@@ -7,7 +7,7 @@
 #+EXPORT_SELECT_TAGS: export
 
 #+Title: Sistemas Operacionais
-#+Subtitle: Gerência de Disco
+#+Subtitle: Discos e RAID
 #+Author: Prof. Lucas Mello Schnorr (UFRGS)
 #+Date: \copyleft
 
@@ -18,21 +18,17 @@
 
 * Estrutura da aula
 
-- Disco Magnético: Estrutura Física
-  - Prato, trilha, setor, cilindro
-  - Cabeça de leitura/escrita e braço do disco
-  - Velocidade de rotação (RPM)
-- Desempenho do Disco
-  - Tempo de busca, latência rotacional, tempo de transferência
-- Escalonamento de Disco
-  - FCFS — primeiro a chegar, primeiro a ser atendido
-  - SSTF — menor tempo de busca primeiro
-  - SCAN — algoritmo do elevador
-  - C-SCAN — varredura circular
-  - LOOK e C-LOOK
-- Discos de Estado Sólido (SSD)
-- Formatação de Disco e Particionamento
-- RAID: motivação, confiabilidade e níveis
+- Disco magnético
+  - Estrutura física: prato, trilha, setor, cilindro
+  - Desempenho: busca, latência rotacional, transferência
+- Escalonamento de disco
+  - FCFS, SSTF, SCAN, C-SCAN, LOOK e C-LOOK
+  - Seleção do algoritmo
+- Discos de estado sólido (SSD)
+- RAID
+  - Motivação, conceito e níveis 0 a 6
+  - Níveis combinados 0+1 e 1+0
+- Síntese: o caminho de uma requisição de E/S
 
 * Disco Magnético: Estrutura Física 1/2
 
@@ -50,7 +46,7 @@ Disco magnético fornece grande parte do armazenamento secundário
 
 #+latex: \vfill
 
-* Disco Magnético: Estrutura Física 1/2
+* Disco Magnético: Estrutura Física 2/2
 
 - Cabeça de leitura/escrita flutua sobre a superfície do prato
   - Cabeças fixadas ao braço do disco; movem-se todas juntas
@@ -62,12 +58,12 @@ Disco magnético fornece grande parte do armazenamento secundário
 
 * Desempenho do Disco
 
-Tempo de acesso randômico composto por duas parcelas:
+Tempo de acesso randômico composto por três parcelas:
 
 - Tempo de busca: mover o braço até o cilindro desejado
   - Componente dominante — varia de 3 a 15 ms em discos modernos
 - Latência rotacional: esperar o setor girar até a cabeça
-  - Em 7.200 RPM: rotação completa em 8,3 ms; latência média ≈ 4,2 ms
+  - Em 7.200 RPM: rotação completa em 8,3 ms; latência média \approx 4,2 ms
 
 #+latex: \vfill
 
@@ -80,13 +76,13 @@ Tempo de acesso randômico composto por duas parcelas:
 - Para a maioria dos discos, tempo de busca domina os demais
   - Reduzir a distância média de busca melhora o desempenho
 
-* Escalonamento de Disco: Motivação
+* -- Escalonamento de Disco: Motivação
 
 Em sistema multiprogramado, vários processos emitem requisições ao disco
 
 - Fila de requisições: cilindros 98, 183, 37, 122, 14, 124, 65, 67
   - Cabeça inicialmente no cilindro 53
-- O SO seleciona qual requisição atender em seguida
+- O escalonador de E/S (aula 26) escolhe a próxima requisição
 
 #+latex: \vfill
 
@@ -128,7 +124,7 @@ SSTF: menor tempo de busca primeiro (Shortest Seek Time First)
 
 - Seleciona a requisição pendente mais próxima da posição atual
 - Exemplo: de 53 → 65, 67, 37, 14, 98, 122, 124, 183
-  - Movimento total: 236 cilindros (≈ 1/3 do FCFS)
+  - Movimento total: 236 cilindros (\approx 1/3 do FCFS)
 
 #+attr_latex: :width .5\linewidth
 [[./img/S_fig10.5.png]]
@@ -228,7 +224,7 @@ Nenhum algoritmo é ótimo em todas as situações
 
 - Desempenho depende do número e tipo de requisições
   - Fila com uma requisição: todos os algoritmos equivalem ao FCFS
-- Método de alocação de arquivos influencia o padrão de requisições
+- Método de alocação de arquivos (aula 23) influencia as requisições
   - Arquivo contíguo: requisições próximas → pouco movimento
   - Arquivo encadeado ou indexado: requisições espalhadas → mais movimento
 
@@ -237,7 +233,7 @@ Nenhum algoritmo é ótimo em todas as situações
 - Algoritmo deve ser módulo separado do SO — substituível
   - SSTF e LOOK são opções aceitáveis como algoritmo padrão
 
-* Discos de Estado Sólido (SSD)
+* -- Discos de Estado Sólido (SSD)
 
 SSD: memória não volátil usada como unidade de armazenamento
 
@@ -259,99 +255,309 @@ SSD: memória não volátil usada como unidade de armazenamento
   - Capacidade máxima menor do que grandes discos magnéticos
   - Vida útil limitada pelo número de ciclos de escrita por célula
 - Escalonamento de disco quase não se aplica a SSDs
-  - Linux usa política FCFS com mesclagem de requisições adjacentes
+  - Sem braço: a ordem das requisições pouco importa
 
-* Formatação de Disco: Baixo Nível
+* SSD por Dentro e na Prática
 
-Disco novo é apenas material magnético bruto sem estrutura
+Controlador do SSD esconde as limitações da memória flash
 
-- Formatação de baixo nível (formatação física) divide o disco em setores
-  - Permite que o controlador leia e grave setores individualmente
-
-#+latex: \vfill
-
-- Estrutura de cada setor:
-  - Cabeçalho: número de cilindro, número de setor, sincronização
-  - Área de dados: geralmente 512 bytes
-  - Trailer: código de correção de erros (ECC)
-- ECC permite detectar e corrigir erros de leitura automaticamente
+- Flash não sobrescreve no lugar: apaga blocos inteiros antes
+- FTL (/Flash Translation Layer/): mapeia blocos lógicos em físicos
+  - Escrita vai para página já apagada; a antiga fica inválida
+  - Coleta de lixo recupera blocos com páginas inválidas
+- Nivelamento de desgaste (/wear leveling/): espalha as escritas
+- TRIM: SO avisa quais blocos o sistema de arquivos liberou
 
 #+latex: \vfill
 
-- Setores sobressalentes reservados para substituir setores defeituosos
-  - Fabricante mapeia blocos lógicos para setores físicos sem defeito
-- Deslocamento de cilindro: setor 0 de trilhas consecutivas é deslocado
-  - Melhora leitura contínua entre trilhas ao compensar o tempo de busca
+Escalonador de E/S no Linux (por dispositivo)
 
-* Particionamento e Formatação Lógica
+#+BEGIN_SRC text
+$ cat /sys/block/nvme0n1/queue/scheduler
+[none] mq-deadline
+#+END_SRC
 
-Após a formatação física, o disco precisa de estrutura lógica
+- SSD NVMe: =none= (sem reordenação), como o FCFS
+- Disco magnético: =mq-deadline= ou =bfq= (reordenam por posição)
 
-- Particionamento: dividir o disco em grupos de cilindros
-  - Cada partição tratada pelo SO como um disco independente
-  - Setor 0 contém o MBR (Master Boot Record) com tabela de partições
-  - MBR suporta discos até 2 TB; GPT suporta até 9,4 ZB
+* -- RAID: Motivação
 
-#+latex: \vfill
+Discos são o componente mais lento do computador
 
-- Formatação lógica (criação do sistema de arquivos):
-  - SO grava estruturas iniciais: mapa de espaço livre, diretório raiz
-  - Define o tipo do sistema de arquivos na tabela de partições
-
-#+latex: \vfill
-
-- Agrupamento em clusters: blocos agrupados para reduzir E/S aleatória
-  - E/S de sistema de arquivos em clusters; E/S de disco em blocos
-- Disco bruto: partição sem sistema de arquivos
-  - Bancos de dados podem usar disco bruto para controle direto
-
-* RAID: Motivação e Confiabilidade
-
-Arrays de discos independentes e redundantes (RAID)
-
-- Com N discos, a chance de algum disco falhar é N vezes maior
-  - 100 discos com MTTF 100.000 h → MTTF do array ≈ 1.000 h (41 dias)
+- Falha de um disco causa perda de dados
+- Risco cresce com o número de discos no sistema
+  - MTTF: /Mean Time To Failure/ (tempo médio até a falha)
+  - Array de 100 discos com MTTF de 100.000 h
+    - Falha esperada a cada 1.000 h (\approx 41 dias)
 
 #+latex: \vfill
 
-- Solução: introduzir redundância para tolerar falhas de disco
-  - Espelhamento: cada disco duplicado; toda gravação feita nos dois
-  - Se um disco falha, dados lidos do espelho
-  - MTTF com espelhamento: ≈ 57.000 anos (com reparo em 10 h)
+Dois objetivos fundamentais para arrays de discos:
+
+- Confiabilidade: recuperar dados após falha de um disco
+  - Solução: redundância \to informação extra para reconstrução
+    - Técnica de espelhamento
+- Desempenho: aumentar a taxa de transferência de dados
+  - Solução: paralelismo \to múltiplos discos em conjunto
+    - Técnica de espalhamento (/striping/)
+
+* RAID: Conceito e Definição
+
+RAID — /Redundant Array of +Inexpensive+ Independent Disks/
+
+- Contrapartida do SLED (/Single Large Expensive Disk/)
+- Array deve parecer um disco único ao sistema operacional
+- Técnicas: /striping/ (distribuir) ou espelhamento (duplicar)
 
 #+latex: \vfill
 
-- Distribuição de dados (striping): dados divididos entre múltiplos discos
-  - Distribuição no nível de bloco: bloco i vai para disco (i mod N) + 1
-  - Aumenta o throughput de leituras e gravações simultâneas
-- RAID combina redundância e distribuição para desempenho e confiabilidade
+** Sete configurações padrão: RAID nível 0 a RAID nível 6
 
-* Níveis de RAID
+- Cada nível é uma organização diferente, sem hierarquia
 
-Níveis de RAID diferem em desempenho, custo e confiabilidade
+#+latex: \vfill\pause
 
-- RAID 0: distribuição em blocos, sem redundância
-  - Alto desempenho; perda total de dados se um disco falhar
-  - Uso: aplicações de alto desempenho onde perda é tolerável
+** Implementações possíveis
+
+- Software (no kernel ou em camada do sistema)
+- Hardware no adaptador de barramento (HBA)
+- Hardware no array de armazenamento dedicado
+
+#+latex: \vfill\pause
+
+** Recurso adicional: disco de segurança (/hot spare/)
+
+- Disco reserva substituído automaticamente em caso de falha
+
+* RAID 0 — Striping sem Redundância
+
+Técnica: distribuição de dados (/striping/)
+
+- Disco virtual dividido em faixas de k setores cada
+- Faixas consecutivas distribuídas nos discos em round-robin
+- Controlador divide acesso grande em comandos paralelos
+
+#+attr_latex: :width .6\linewidth
+[[./img/T_fig5.20.png]]
+
+#+latex: \vfill\pause
+
+** Desempenho
+
+- N discos: taxa de transferência N \times maior
+  para acessos de múltiplos blocos
+- Sem ganho para acessos de um setor por vez
+
+#+latex: \vfill\pause
+
+** Limitação crítica
+
+- Nenhuma redundância — não é RAID verdadeiro
+- Falha de um disco destrói todos os dados do array
+- MTBF do array é N vezes menor que o de um disco
+
+* RAID 1 — Espelhamento
+
+Técnica: duplicação completa de todos os discos
+
+- Cada faixa gravada nos dois discos do par (espelhamento)
+- Volume espelhado: disco lógico com dois discos físicos
+- Sem distribuição — tudo é duplicado
+
+#+attr_latex: :width .9\linewidth
+[[./img/T_fig5.20b.png]]
 
 #+latex: \vfill
 
-- RAID 1: espelhamento completo
-  - Alta confiabilidade e recuperação rápida; custo: dobra o espaço
-  - Uso: aplicações que exigem alta disponibilidade
+** Desempenho
+
+- Leitura: qualquer cópia pode ser usada — dobra o throughput
+- Escrita: sem melhora — ambos os discos recebem os dados
 
 #+latex: \vfill
 
-- RAID 5: distribuição com paridade distribuída entre N+1 discos
-  - Paridade espalhada por todos os discos (não há disco dedicado)
-  - Tolera falha de um disco; reconstrução a partir dos demais
-  - Uso: armazenamento de grandes volumes de dados
-- RAID 0+1 / 1+0: combinação de distribuição e espelhamento
-  - Desempenho do RAID 0 com confiabilidade do RAID 1
+** Confiabilidade
+
+- Falha de um disco: a cópia do par continua funcionando
+- Recuperação: instalar novo disco e copiar dados do espelho
+- Tempo médio até a perda de dados \approx 57.000 anos @@latex:\linebreak@@
+  (MTTF=100.000 h, tempo de reparo=10 h)
+
+* RAID 2 — Código de Hamming com Sincronização
+
+Técnica: striping em nível de palavra/byte com código Hamming
+
+- Cada palavra de dados dividida bit a bit entre os discos
+- Bits de paridade Hamming em discos adicionais (não representados)
+  - Correção de erro de 1 bit sem parar o sistema
+
+#+attr_latex: :width .9\linewidth
+[[./img/T_fig5.20c.png]]
+
+#+latex: \vfill
+
+Requisitos e limitações:
+
+- Discos rigorosamente sincronizados (rotação e braço)
+- Sobrecarga: 19% com 32 discos de dados + 6 de paridade
+- Controlador complexo: verificação Hamming em cada bit
+- Uso: sistemas de alto desempenho (ex.: CM-2 da Thinking Machines)
+
+#+latex: \vfill
+
+Raramente utilizado na prática devido à complexidade
+
+* RAID 3 — Paridade Simples com Sincronização
+
+Técnica: versão simplificada do RAID 2
+
+- Um único bit de paridade por palavra de dados
+- Paridade gravada em disco dedicado
+- Discos sincronizados: palavras espalhadas por múltiplos discos
+
+#+attr_latex: :width .9\linewidth
+[[./img/T_fig5.20d.png]]
+
+#+latex: \vfill\pause
+
+** Correção de erro na falha de disco
+
+- Posição do bit defeituoso é conhecida (disco quebrado)
+- Controlador trata bits do disco falho como 0
+- Erro de paridade indica que o bit deveria ser 1 — corrigido
+
+#+latex: \vfill\pause
+
+** Limitação: número de operações E/S por segundo não melhora
+- Taxa de dados alta, mas não paraleliza requisições
+
+* RAID 4 — Paridade em Disco Dedicado
+
+#+begin_center
+[Como o RAID 0 + paridade faixa por faixa em disco extra]
+
+#+attr_latex: :width .3\linewidth
+[[./img/T_fig5.20.png]]
+#+end_center
+
+RAID 4 — paridade por blocos intercalados em disco dedicado
+
+- N discos de dados + 1 disco de paridade (XOR das faixas)
+- Leitura de um bloco: acessa apenas um disco de dados
+- Pequenas escritas: ciclo leitura-modificação-gravação
+  (4 acessos ao disco por escrita)
+- Problema: disco de paridade único torna-se gargalo
+
+#+attr_latex: :width .9\linewidth
+[[./img/T_fig5.20e.png]]
+
+* RAID 5 — Paridade Distribuída
+
+RAID 5 — paridade distribuída com blocos intercalados
+
+- Dados e paridade distribuídos por todos os N+1 discos
+- Paridade do bloco n: disco (n mod N) + 1
+- Elimina o gargalo do disco de paridade único
+- Nível RAID com paridade mais utilizado na prática
+
+#+attr_latex: :width .9\linewidth
+[[./img/T_fig5.20f.png]]
+
+* RAID 6 — Redundância da Paridade Distribuída
+
+RAID 6 — esquema de redundância P + Q (ou P + P' como na figura)
+
+- Dois blocos de paridade (ex.: códigos Reed-Solomon)
+- Tolera falha simultânea de até dois discos
+- Escritas mais custosas; leituras sem penalidade adicional
+
+#+attr_latex: :width .9\linewidth
+[[./img/T_fig5.20g.png]]
+
+* Comparação dos Níveis
+** Níveis e características                                        :BMCOL:
+
+| Nível  | Redundância    | Overhead |
+|--------+----------------+----------|
+| RAID 0 | nenhuma        | 0%       |
+| RAID 1 | espelhamento   | 100%     |
+| RAID 4 | paridade única | 1/N      |
+| RAID 5 | paridade dist. | 1/N      |
+| RAID 6 | 2 paridades    | 2/N      |
+
+** Uso típico
+
+- RAID 0: alto desempenho, dados não críticos
+- RAID 1: alta disponibilidade, recuperação rápida
+- RAID 5: volumes grande, custo/desempenho equilibrado
+- RAID 6: máxima confiabilidade
+
+#+latex: \vfill
+
+** Outro uso: desempenho e confiabilidade igualmente importantes
+- Exemplo: bancos de dados pequenos
+
+* RAID 0+1 e 1+0 — Níveis Combinados
+
+RAID 0+1 — striping depois espelhamento
+
+- Primeiro: criar distribuição (striping) dos dados
+- Depois: espelhar toda a distribuição
+- Falha de um disco: distribuição inteira fica inacessível
+
+#+attr_latex: :width .27\linewidth
+[[./img/S_fig10.12a.png]]
+
+#+latex: \vfill
+
+RAID 1+0 (/RAID 10/) — espelhamento depois striping
+
+- Primeiro: espelhar discos em pares
+- Depois: distribuir os pares espelhados
+- Falha de um disco: apenas ele fica indisponível
+- Disco espelhado continua disponível
+
+#+attr_latex: :width .27\linewidth
+[[./img/S_fig10.12b.png]]
+
+#+begin_center
+Melhor desempenho que RAID 5, mas overhead de 100%
+#+end_center
+
+* -- Síntese: o Caminho de uma Requisição de E/S
+
+** Left                                                              :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.55
+:END:
+
+=read()= bloqueante de um arquivo em disco
+
+#+latex: {\small
+1. Kernel verifica parâmetros; dado no cache? retorna (aula 25)
+2. Senão: SF traduz nome → i-node → bloco (aulas 22–24)
+3. Processo bloqueia; requisição vai para a fila do dispositivo
+4. Escalonador de E/S ordena a fila (aulas 26 e 27)
+5. Driver programa o controlador e o DMA (aula 26)
+6. Controlador transfere os dados; DMA gera interrupção
+7. Tratador sinaliza o driver; kernel copia os dados
+8. Processo volta à fila de prontos; =read()= retorna
+#+latex: }
+
+** Right                                                             :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.45
+:END:
+
+#+attr_latex: :width \linewidth
+[[./img/S_fig13.13.png]]
 
 * Referências
 
-- Silberchatz
-  - Cap. 10, Secs. 10.1, 10.2, 10.4, 10.7
+- Silberschatz
+  - Cap. 10, Secs. 10.1, 10.2, 10.4 (Disco e escalonamento)
+  - Cap. 10, Sec. 10.7 (RAID)
+  - Cap. 13, Sec. 13.5 (Requisições de E/S em operações de hardware)
 - Tanenbaum
-  - Cap. 5, Secs. 5.1.1, 5.1.2, 5.1.3, 5.4.1, 5.4.2, 5.4.3
+  - Cap. 5, Sec. 5.4.1 (Hardware do disco e RAID)
+  - Cap. 5, Sec. 5.4.3 (Algoritmos de escalonamento do braço do disco)
