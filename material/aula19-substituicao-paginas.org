@@ -156,7 +156,7 @@ LRU e ótimo são algoritmos de pilha: imunes à anomalia de Bélády
 
 - Páginas na memória com n quadros \(\subseteq\) páginas com n+1 quadros
 
-* Implementação do LRU: Contadores e Pilha
+* LRU Exato: Contadores ou Pilha (Ambos Inviáveis)
 
 Contadores
 
@@ -220,7 +220,7 @@ Caso extremo do envelhecimento: só o bit R
 
 - FIFO que inspeciona o bit R
 - R = 0: substituir a página
-- R = 1: zerar R; segunda chance
+- R = 1: zerar R; *segunda chance*
 
 #+latex: \vfill
 
