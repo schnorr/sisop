@@ -34,6 +34,7 @@
   - Dispositivos de blocos, de caracteres e de rede
   - Relógios e temporizadores
   - E/S bloqueante, não bloqueante e assíncrona
+- Síntese: o caminho de uma requisição de E/S
 
 * -- Visão Geral de E/S
 
@@ -349,7 +350,7 @@ Objetivos do escalonamento de E/S
 
 Cache \neq buffer: cache guarda uma cópia; buffer pode ter a única
 
-- Algoritmos de escalonamento de disco: aula 27
+- Algoritmos de escalonamento de disco: aula 26
 
 * Spooling (Simultaneous Peripheral Operations On-Line)            :noexport:
 - Buffer para dispositivos que não aceitam fluxos intercalados
@@ -460,6 +461,34 @@ Três funções básicas fornecidas pelo hardware:
 - Notifica via sinal ou callback ao concluir
 - Maior complexidade para o programador
 
+* -- Síntese: o Caminho de uma Requisição de E/S
+
+** Left                                                              :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.55
+:END:
+
+=read()= bloqueante de um arquivo em disco
+
+#+latex: {\small
+1. Kernel verifica parâmetros; dado no cache? retorna (aula 25)
+2. Senão: SF traduz nome → i-node → bloco (aulas 22–24)
+3. Processo bloqueia; requisição vai para a fila do dispositivo
+4. Escalonador de E/S ordena a fila (aula 26)
+5. Driver programa o controlador e o DMA
+6. Controlador transfere os dados; DMA gera interrupção
+7. Tratador sinaliza o driver; kernel copia os dados
+8. Processo volta à fila de prontos; =read()= retorna
+#+latex: }
+
+** Right                                                             :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.45
+:END:
+
+#+attr_latex: :width \linewidth
+[[./img/S_fig13.13.png]]
+
 * Referências
 
 - Silberschatz
@@ -467,6 +496,7 @@ Três funções básicas fornecidas pelo hardware:
   - Cap. 13, Sec. 13.2 (Hardware de E/S)
   - Cap. 13, Sec. 13.3 (Interface de E/S da aplicação)
   - Cap. 13, Sec. 13.4 (Subsistema de E/S do kernel)
+  - Cap. 13, Sec. 13.5 (Requisições de E/S em operações de hardware)
 - Tanenbaum
   - Cap. 5, Sec. 5.1 (Princípios do hardware de E/S)
   - Cap. 5, Sec. 5.2 (Princípios do software de E/S)
