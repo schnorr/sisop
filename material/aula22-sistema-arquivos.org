@@ -22,6 +22,7 @@
   - Definição e motivação do sistema de arquivos
   - Tipos de arquivo: regulares, diretórios, especiais
   - Estrutura interna de arquivos
+  - Registros lógicos e blocos físicos
   - Atributos (metadados) de arquivos
 - Operações sobre arquivos
   - Criar, deletar, abrir, fechar
@@ -160,7 +161,7 @@ Três modelos de estrutura interna de arquivos:
 
 * Atributos de Arquivos
 
-Atributos (metadados) armazenados na estrutura de diretório:
+Atributos (metadados) no diretório ou em estrutura própria (i-node):
 
 - Nome: nome simbólico, única informação legível por humanos
 - Identificador: rótulo exclusivo (número) dentro do sistema
@@ -298,12 +299,12 @@ Número de bloco relativo: índice a partir do início do arquivo
 
 ** Comparação dos métodos de acesso
 
-| Critério        | Sequencial           | Direto             |
-|-----------------+----------------------+--------------------|
-| Ordem de acesso | estrita (início→fim) | qualquer ordem     |
+| Critério        | Sequencial             | Direto                 |
+|-----------------+------------------------+------------------------|
+| Ordem de acesso | estrita (início→fim)   | qualquer ordem         |
 | Operação chave  | =read_next()=          | =read(n)= / =write(n)= |
-| Aplicações      | editores, compilad.  | bancos de dados    |
-| Origem          | modelo de fita       | modelo de disco    |
+| Aplicações      | editores, compiladores | bancos de dados        |
+| Origem          | modelo de fita         | modelo de disco        |
 
 * Diretórios: Conceito
 
