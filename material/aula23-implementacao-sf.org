@@ -60,7 +60,7 @@ Após a formatação física, o disco precisa de estrutura lógica
 - Particionamento: dividir o disco em grupos de cilindros
   - Cada partição tratada pelo SO como um disco independente
   - Setor 0 contém o MBR (Master Boot Record) com tabela de partições
-  - MBR suporta discos até 2 TB; GPT suporta até 9,4 ZB
+  - MBR suporta discos até 2 TB; GPT (GUID Partition Table) até 9,4 ZB
 
 #+latex: \vfill
 
@@ -74,6 +74,33 @@ Após a formatação física, o disco precisa de estrutura lógica
   - E/S de sistema de arquivos em clusters; E/S de disco em blocos
 - Disco bruto: partição sem sistema de arquivos
   - Bancos de dados podem usar disco bruto para controle direto
+
+* MBR \times GPT
+
+#+attr_latex: :font \small
+|                     | MBR                         | GPT (GUID Partition Table)          |
+|---------------------+-----------------------------+-------------------------------------|
+| Endereço de setor   | 32 bits                     | 64 bits                             |
+| Tamanho máximo      | 2 TB (2^{32} \times 512 B)  | \approx 9,4 ZB (2^{64} \times 512 B) |
+| Número de partições | 4 primárias                 | 128 (padrão)                        |
+| Identificação       | tipo em 1 byte              | GUID de 128 bits                    |
+| Robustez            | cópia única (setor 0)       | cópia no fim do disco + CRC         |
+
+GPT faz parte do UEFI e mantém um MBR protetor no setor 0
+
+** Na prática: =lsblk= (tabela GPT, partição EFI e =/boot=)
+#+latex: {\footnotesize
+#+BEGIN_SRC text
+$ lsblk -i -o NAME,SIZE,PTTYPE,PARTTYPENAME,FSTYPE,MOUNTPOINT /dev/nvme1n1
+NAME          SIZE PTTYPE PARTTYPENAME     FSTYPE      MOUNTPOINT
+nvme1n1       3.7T gpt
+|-nvme1n1p1   512M gpt    EFI System       vfat        /boot/efi
+|-nvme1n1p2   488M gpt    Linux filesystem ext2        /boot
+`-nvme1n1p3   3.7T gpt    Linux filesystem crypto_LUKS
+$ lsblk -no PARTUUID /dev/nvme1n1p1
+5571d6bc-fde7-4044-82ac-bbeef9252952
+#+END_SRC
+#+latex: }
 
 * Layout do Sistema de Arquivos em Disco
 ** Estrutura do disco inteiro
@@ -105,7 +132,7 @@ Duas estruturas centrais da partição (UNIX)
   - Número mágico identifica o tipo do FS
 - I-node: contém atributos + endereços dos blocos do arquivo
   - Carregado na memória apenas quando o arquivo está aberto
-- Número do i-node: o identificador do arquivo (=ls -i=, aula 22)
+- Número do i-node: o identificador do arquivo (=ls -i=)
 
 #+latex: \vfill
 
@@ -342,7 +369,7 @@ Sistemas modernos (ZFS, Btrfs) usam outras abordagens
 
 * -- Gerenciamento do Espaço Livre: Mapa de Bits
 
-Quais blocos do disco estão livres? (mesma pergunta da aula 15)
+Quais blocos do disco estão livres?
 
 #+latex: \vfill
 
