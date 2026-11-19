@@ -18,24 +18,21 @@
 
 * Estrutura da aula
 
-- Conceito de arquivo
-  - Definição e motivação do sistema de arquivos
-  - Tipos de arquivo: regulares, diretórios, especiais
-  - Estrutura interna de arquivos
+- Por que um sistema de arquivos
+- O arquivo: o que é
+  - Conceito, tipos e estrutura interna
   - Registros lógicos e blocos físicos
-  - Atributos (metadados) de arquivos
-- Operações sobre arquivos
-  - Criar, deletar, abrir, fechar
-  - Ler, escrever, reposicionar, truncar
-  - Tabela de arquivos abertos
-- Métodos de acesso
-  - Acesso sequencial
-  - Acesso direto (aleatório)
-- Diretórios: a visão do usuário
+- O arquivo: o que o SO sabe sobre ele
+  - Atributos (metadados); na prática com =stat=
+- O arquivo: como usá-lo
+  - Operações, =open()= e tabela de arquivos abertos
+  - Acesso sequencial e direto
+- O arquivo: como encontrá-lo
   - Diretórios em árvore hierárquica
   - Caminhos absolutos e relativos
+- Síntese: da visão do usuário à implementação
 
-* Visão Geral: Sistema de Arquivos
+* -- Visão Geral: Sistema de Arquivos
 
 O SO abstrai dispositivos físicos em uma unidade lógica: o arquivo
 
@@ -61,7 +58,7 @@ memória secundária
 - Menor unidade de armazenamento lógico: dados só vão ao disco
   dentro de um arquivo
 
-* Conceito de Arquivo
+* -- Conceito de Arquivo
 
 Um arquivo é uma coleção nomeada de informações em memória secundária
 
@@ -159,7 +156,9 @@ Três modelos de estrutura interna de arquivos:
   desperdiçado (arquivo de 1.949 bytes usa 4 blocos de 512 = 2.048)
   - /déjà vu/ de paginação
 
-* Atributos de Arquivos
+* -- Atributos de Arquivos
+
+O que o SO sabe sobre um arquivo?
 
 Atributos (metadados) no diretório ou em estrutura própria (i-node):
 
@@ -206,7 +205,9 @@ Change: 2026-10-30 17:43:47.312814425 -0300
 - Horários: último acesso, modificação do conteúdo e dos atributos
 - Links: quantos nomes apontam para este arquivo (aula 24)
 
-* Operações sobre Arquivos
+* -- Operações sobre Arquivos
+
+O que um programa pode fazer com um arquivo?
 
 Chamadas de sistema para as seis operações básicas:
 
@@ -306,7 +307,9 @@ Número de bloco relativo: índice a partir do início do arquivo
 | Aplicações      | editores, compiladores | bancos de dados        |
 | Origem          | modelo de fita         | modelo de disco        |
 
-* Diretórios: Conceito
+* -- Diretórios: Conceito
+
+Como encontrar um arquivo entre milhares?
 
 Diretório: estrutura do sistema de arquivos que mapeia nomes de
 arquivos para suas localizações no dispositivo
@@ -385,6 +388,25 @@ Caminho relativo: caminho a partir do diretório de trabalho atual
 | Raiz         | /                        | C:\                      |
 | Diretório pai| ..                       | ..                       |
 | Dir. atual   | .                        | .                        |
+
+* -- Síntese: da Visão do Usuário à Implementação
+
+Hoje: o sistema de arquivos visto de fora, pelo usuário e pelo programador
+
+#+latex: \vfill
+
+#+attr_latex: :font \small
+| Visto hoje (visão do usuário)           | Por dentro (próximas aulas)             |
+|-----------------------------------------+-----------------------------------------|
+| Identificador do arquivo (=ls -i=)      | I-node e alocação de blocos (aula 23)   |
+| Diretório mapeia nome \to identificador | Implementação de diretórios (aula 24)   |
+| =Links: 1= no =stat=; múltiplos nomes   | Links físicos e simbólicos (aula 24)    |
+| 22 bytes ocupando 4 KB                  | Tamanho do bloco e desempenho (aula 25) |
+| Arquivos especiais de bloco e caractere | Dispositivos e E/S (aulas 26 e 27)      |
+
+#+latex: \vfill
+
+Próximas aulas: abrir a caixa e ver como o SO implementa tudo isso
 
 * Referências
 
