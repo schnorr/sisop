@@ -247,7 +247,7 @@ Lista linear + tabela hash para acelerar buscas
 - Cache de buscas: guarda resultados recentes em memória
   - Eficaz quando poucos arquivos são acessados
 
-* Conteúdo das Entradas de Diretório 1/2
+* Conteúdo das Entradas de Diretório 1/3
 
 Questão de projeto: onde armazenar os atributos do arquivo?
 
@@ -261,21 +261,49 @@ Questão de projeto: onde armazenar os atributos do arquivo?
 - Entrada curta: nome + número de i-node
 - Atributos e blocos ficam no i-node
 - Vantagem: suporta ligações rígidas com facilidade
-#+latex: \vfill\pause
+#+latex: \vfill
 
-* Conteúdo das Entradas de Diretório 2/2
-** Nomes de tamanho variável
+* Conteúdo das Entradas de Diretório 2/3
+
+** Left                                                              :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.45
+:END:
+
+*** Nomes de tamanho variável
 - Abordagem sequencial
   - Entrada com tamanho variável
   - Nome termina com byte nulo
   - Alinhado em múltiplo de palavra
+
+** Right                                                             :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.55
+:END:
+
+#+attr_latex: :height .8\textheight
+[[./img/T_4.15a.png]]
+
+* Conteúdo das Entradas de Diretório 3/3
+
+** Left                                                              :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.45
+:END:
+
+*** Nomes de tamanho variável
 - Abordagem com heap
   - Entrada fixa com ponteiro para heap
   - Nomes armazenados em área separada
   - Remoção não deixa lacuna no heap
 
-#+attr_latex: :width .65\linewidth
-[[./img/T_4.15.png]]
+** Right                                                             :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.55
+:END:
+
+#+attr_latex: :height .8\textheight
+[[./img/T_4.15b.png]]
 
 * -- Ligações Rígidas (Hard Links)
 
