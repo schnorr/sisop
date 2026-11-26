@@ -7,7 +7,7 @@
 #+EXPORT_SELECT_TAGS: export
 
 #+Title: Sistemas Operacionais
-#+Subtitle: Desempenho e Confiabilidade de Sistemas de Arquivos
+#+Subtitle: Desempenho e Confiabilidade: Sistemas de Arquivos e RAID
 #+Author: Prof. Lucas Mello Schnorr (UFRGS)
 #+Date: \copyleft
 
@@ -18,7 +18,7 @@
 
 * Estrutura da aula
 
-- Desempenho
+- Desempenho do sistema de arquivos
   - Tamanho do bloco: desempenho \times espaço
   - Eficiência e desempenho do sistema de arquivos
   - Cache de buffer e cache de páginas
@@ -27,6 +27,9 @@
   - Sistemas de arquivos estruturados em log (LFS)
   - Journaling: motivação, operação e recuperação
   - Backups
+- RAID: desempenho e confiabilidade com múltiplos discos
+  - Motivação, conceito e níveis 0 a 6
+  - Níveis combinados 0+1 e 1+0
 
 * -- Tamanho do Bloco: Desempenho \times Espaço
 
@@ -227,13 +230,233 @@ Estratégias
 - Dump lógico: percorre a árvore e copia arquivos e diretórios
   - Permite restaurar um arquivo ou diretório isolado
 
+* -- RAID: Motivação
+
+Discos são o componente mais lento do computador
+
+- Falha de um disco causa perda de dados
+- Risco cresce com o número de discos no sistema
+  - MTTF: /Mean Time To Failure/ (tempo médio até a falha)
+  - Array de 100 discos com MTTF de 100.000 h
+    - Falha esperada a cada 1.000 h (\approx 41 dias)
+
+#+latex: \vfill
+
+Dois objetivos fundamentais para arrays de discos:
+
+- Confiabilidade: recuperar dados após falha de um disco
+  - Solução: redundância \to informação extra para reconstrução
+    - Técnica de espelhamento
+- Desempenho: aumentar a taxa de transferência de dados
+  - Solução: paralelismo \to múltiplos discos em conjunto
+    - Técnica de espalhamento (/striping/)
+
+* RAID: Conceito e Definição
+
+RAID — /Redundant Array of +Inexpensive+ Independent Disks/
+
+- Contrapartida do SLED (/Single Large Expensive Disk/)
+- Array deve parecer um disco único ao sistema operacional
+- Técnicas: /striping/ (distribuir) ou espelhamento (duplicar)
+
+#+latex: \vfill
+
+** Sete configurações padrão: RAID nível 0 a RAID nível 6
+
+- Cada nível é uma organização diferente, sem hierarquia
+
+#+latex: \vfill\pause
+
+** Implementações possíveis
+
+- Software (no kernel ou em camada do sistema)
+- Hardware no adaptador de barramento (HBA)
+- Hardware no array de armazenamento dedicado
+
+#+latex: \vfill\pause
+
+** Recurso adicional: disco de segurança (/hot spare/)
+
+- Disco reserva substituído automaticamente em caso de falha
+
+* RAID 0 — Striping sem Redundância
+
+Técnica: distribuição de dados (/striping/)
+
+- Disco virtual dividido em faixas de k setores cada
+- Faixas consecutivas distribuídas nos discos em round-robin
+- Controlador divide acesso grande em comandos paralelos
+
+#+attr_latex: :width .6\linewidth
+[[./img/T_fig5.20.png]]
+
+#+latex: \vfill\pause
+
+** Desempenho
+
+- N discos: taxa de transferência N \times maior
+  para acessos de múltiplos blocos
+- Sem ganho para acessos de um setor por vez
+
+#+latex: \vfill\pause
+
+** Limitação crítica
+
+- Nenhuma redundância — não é RAID verdadeiro
+- Falha de um disco destrói todos os dados do array
+- MTBF do array é N vezes menor que o de um disco
+
+* RAID 1 — Espelhamento
+
+Técnica: duplicação completa de todos os discos
+
+- Cada faixa gravada nos dois discos do par (espelhamento)
+- Volume espelhado: disco lógico com dois discos físicos
+- Sem distribuição — tudo é duplicado
+
+#+attr_latex: :width .9\linewidth
+[[./img/T_fig5.20b.png]]
+
+#+latex: \vfill
+
+** Desempenho
+
+- Leitura: qualquer cópia pode ser usada — dobra o throughput
+- Escrita: sem melhora — ambos os discos recebem os dados
+
+#+latex: \vfill
+
+** Confiabilidade
+
+- Falha de um disco: a cópia do par continua funcionando
+- Recuperação: instalar novo disco e copiar dados do espelho
+- Tempo médio até a perda de dados \approx 57.000 anos @@latex:\linebreak@@
+  (MTTF=100.000 h, tempo de reparo=10 h)
+
+* RAID 2 e RAID 3 — Paridade em Nível de Bit
+
+Striping em nível de bit/byte: todos os discos atendem cada requisição
+
+#+attr_latex: :width .7\linewidth
+[[./img/T_fig5.20c.png]]
+
+- RAID 2: código de Hamming em discos adicionais
+  - Corrige erro de 1 bit; sobrecarga de 19% (32 dados + 6 paridade)
+
+#+attr_latex: :width .55\linewidth
+[[./img/T_fig5.20d.png]]
+
+- RAID 3: um único bit de paridade, em disco dedicado
+  - Disco falho é conhecido: a paridade basta para reconstruir o bit
+
+#+latex: \vfill
+
+Ambos exigem discos sincronizados (rotação e braço)
+- Alta taxa de dados, mas não paralelizam requisições independentes
+- Raramente usados na prática
+
+* RAID 4 — Paridade em Disco Dedicado
+
+#+begin_center
+[Como o RAID 0 + paridade faixa por faixa em disco extra]
+
+#+attr_latex: :width .3\linewidth
+[[./img/T_fig5.20.png]]
+#+end_center
+
+RAID 4 — paridade por blocos intercalados em disco dedicado
+
+- N discos de dados + 1 disco de paridade (XOR das faixas)
+- Leitura de um bloco: acessa apenas um disco de dados
+- Pequenas escritas: ciclo leitura-modificação-gravação
+  (4 acessos ao disco por escrita)
+- Problema: disco de paridade único torna-se gargalo
+
+#+attr_latex: :width .9\linewidth
+[[./img/T_fig5.20e.png]]
+
+* RAID 5 — Paridade Distribuída
+
+RAID 5 — paridade distribuída com blocos intercalados
+
+- Dados e paridade distribuídos por todos os N+1 discos
+- Paridade do bloco n: disco (n mod N) + 1
+- Elimina o gargalo do disco de paridade único
+- Nível RAID com paridade mais utilizado na prática
+
+#+attr_latex: :width .9\linewidth
+[[./img/T_fig5.20f.png]]
+
+* RAID 6 — Redundância da Paridade Distribuída
+
+RAID 6 — esquema de redundância P + Q (ou P + P' como na figura)
+
+- Dois blocos de paridade (ex.: códigos Reed-Solomon)
+- Tolera falha simultânea de até dois discos
+- Escritas mais custosas; leituras sem penalidade adicional
+
+#+attr_latex: :width .9\linewidth
+[[./img/T_fig5.20g.png]]
+
+* Comparação dos Níveis
+** Níveis e características                                        :BMCOL:
+
+| Nível  | Redundância    | Overhead |
+|--------+----------------+----------|
+| RAID 0 | nenhuma        | 0%       |
+| RAID 1 | espelhamento   | 100%     |
+| RAID 4 | paridade única | 1/N      |
+| RAID 5 | paridade dist. | 1/N      |
+| RAID 6 | 2 paridades    | 2/N      |
+
+** Uso típico
+
+- RAID 0: alto desempenho, dados não críticos
+- RAID 1: alta disponibilidade, recuperação rápida
+- RAID 5: volumes grande, custo/desempenho equilibrado
+- RAID 6: máxima confiabilidade
+
+#+latex: \vfill
+
+** Outro uso: desempenho e confiabilidade igualmente importantes
+- Exemplo: bancos de dados pequenos
+
+* RAID 0+1 e 1+0 — Níveis Combinados
+
+RAID 0+1 — striping depois espelhamento
+
+- Primeiro: criar distribuição (striping) dos dados
+- Depois: espelhar toda a distribuição
+- Falha de um disco: distribuição inteira fica inacessível
+
+#+attr_latex: :width .27\linewidth
+[[./img/S_fig10.12a.png]]
+
+#+latex: \vfill
+
+RAID 1+0 (/RAID 10/) — espelhamento depois striping
+
+- Primeiro: espelhar discos em pares
+- Depois: distribuir os pares espelhados
+- Falha de um disco: apenas ele fica indisponível
+- Disco espelhado continua disponível
+
+#+attr_latex: :width .27\linewidth
+[[./img/S_fig10.12b.png]]
+
+#+begin_center
+Melhor desempenho que RAID 5, mas overhead de 100%
+#+end_center
+
 * Referências
 
 - Silberschatz
   - Cap. 12, Sec. 12.6 (Eficiência e Desempenho)
   - Cap. 12, Sec. 12.7 (Recuperação: consistência, LFS, backup)
+  - Cap. 10, Sec. 10.7 (RAID)
 - Tanenbaum
   - Cap. 4, Sec. 4.3.5 (Sistemas de arquivos estruturados em log)
   - Cap. 4, Sec. 4.3.6 (Sistemas de arquivos journaling)
   - Cap. 4, Sec. 4.4.1 (Tamanho do bloco)
   - Cap. 4, Secs. 4.4.2–4.4.4 (Backups, consistência e desempenho)
+  - Cap. 5, Sec. 5.4.1 (RAID)

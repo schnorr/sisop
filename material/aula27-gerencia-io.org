@@ -350,7 +350,7 @@ Objetivos do escalonamento de E/S
 
 Cache \neq buffer: cache guarda uma cópia; buffer pode ter a única
 
-- Algoritmos de escalonamento de disco: aula 26
+- Algoritmos de escalonamento de disco: aula 25
 
 * Spooling (Simultaneous Peripheral Operations On-Line)            :noexport:
 - Buffer para dispositivos que não aceitam fluxos intercalados
@@ -471,10 +471,10 @@ Três funções básicas fornecidas pelo hardware:
 =read()= bloqueante de um arquivo em disco
 
 #+latex: {\small
-1. Kernel verifica parâmetros; dado no cache? retorna (aula 25)
+1. Kernel verifica parâmetros; dado no cache? retorna (aula 26)
 2. Senão: SF traduz nome → i-node → bloco (aulas 22–24)
 3. Processo bloqueia; requisição vai para a fila do dispositivo
-4. Escalonador de E/S ordena a fila (aula 26)
+4. Escalonador de E/S ordena a fila (aula 25)
 5. Driver programa o controlador e o DMA
 6. Controlador transfere os dados; DMA gera interrupção
 7. Tratador sinaliza o driver; kernel copia os dados
